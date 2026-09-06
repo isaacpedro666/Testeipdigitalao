@@ -1,0 +1,977 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#0F172A">
+<title>IP Digital AO 2.0 — Marketplace</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://api.fontshare.com/v2/css?f[]=satoshi@700,500,600&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<style>
+:root{
+  --black:#0F172A;--card:#1E293B;--card2:#334155;
+  --v:#16A34A;--vlt:#22C55E;--vbtn:#F59E0B;--vxlt:#FEF3C7;--vdim:#92400E;--vbg:#FEF3C7;
+  --white:#fff;--off:#020617;
+  --g1:#334155;--g2:#475569;--g3:#94A3B8;--g3lt:#CBD5E1;
+  --green:#16A34A;--greenh:#15803D;--glt:#DCFCE7;
+  --gold:#F59E0B;--goldh:#D97706;
+  --red:#DC2626;--rlt:#FEE2E2;
+  --petrol:#0E4A55;--petroldim:#0A343C;--petrollt:#5EEAD4;
+  --r:22px;--r-lg:26px;--rsm:14px;
+  --sh:0 2px 20px rgba(2,6,23,.22),0 1px 3px rgba(2,6,23,.14);
+  --shlg:0 16px 48px rgba(2,6,23,.34),0 4px 14px rgba(2,6,23,.18);
+  --pagebg:#0F172A;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{font-family:'Inter',sans-serif;background:var(--pagebg);color:#EDEAF6;font-size:15px;line-height:1.6;min-height:100vh}
+h1,h2,h3,.logo,.tit{font-family:'Satoshi',sans-serif;font-weight:700;letter-spacing:-.01em}
+button,input,select,textarea{font-family:inherit}
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-thumb{background:var(--g2);border-radius:3px}
+img{display:block;max-width:100%}
+
+/* ── TOP BAR ── */
+.topbar{position:sticky;top:0;z-index:200;height:60px;display:flex;align-items:center;justify-content:space-between;padding:0 20px;background:rgba(15,23,42,.88);backdrop-filter:blur(14px) saturate(140%);border-bottom:1px solid rgba(255,255,255,.06)}
+.logo{display:flex;align-items:center;gap:10px;font-size:19px;color:#fff;cursor:pointer;user-select:none}
+.logo .mark{width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,var(--v),var(--vlt));display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700;color:#fff;flex-shrink:0}
+.logo b{color:var(--vlt)}
+.top-r{display:flex;align-items:center;gap:10px}
+.role-switch{display:flex;align-items:center;gap:6px;background:var(--card);border:1px solid var(--g1);border-radius:999px;padding:5px 6px 5px 12px;font-size:12.5px;color:var(--g3lt)}
+.role-switch select{background:none;border:none;color:#fff;font-size:12.5px;font-weight:700;outline:none;cursor:pointer}
+.role-switch select option{background:var(--card)}
+.icon-btn{width:38px;height:38px;border-radius:10px;background:var(--card);border:1px solid var(--g1);display:flex;align-items:center;justify-content:center;color:var(--g3lt);cursor:pointer;position:relative;flex-shrink:0}
+.icon-btn:hover{border-color:var(--vbtn);color:#fff}
+.dot-badge{position:absolute;top:-3px;right:-3px;width:9px;height:9px;border-radius:50%;background:var(--red);border:2px solid var(--black)}
+.avatar{width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,var(--vdim),var(--v));display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;color:#fff;cursor:pointer;flex-shrink:0}
+
+/* ── LAYOUT: SIDEBAR + CONTENT ── */
+.shell{display:flex;min-height:calc(100vh - 60px)}
+.sidebar{width:230px;flex-shrink:0;border-right:1px solid var(--g1);padding:18px 12px;position:sticky;top:60px;height:calc(100vh - 60px);overflow-y:auto}
+.sec-group{margin-bottom:6px}
+.sec-btn{width:100%;display:flex;align-items:center;gap:10px;padding:11px 12px;border-radius:12px;background:none;border:none;color:var(--g3lt);font-size:13.5px;font-weight:600;cursor:pointer;text-align:left;transition:background .15s,color .15s}
+.sec-btn .ic{font-size:16px;width:20px;text-align:center;flex-shrink:0}
+.sec-btn:hover{background:var(--card);color:#fff}
+.sec-btn.active{background:var(--card);color:#fff;box-shadow:inset 3px 0 0 var(--vbtn)}
+.sub-list{display:none;flex-direction:column;padding:2px 0 8px 30px;gap:1px}
+.sub-list.open{display:flex}
+.sub-btn{padding:8px 10px;border-radius:8px;background:none;border:none;color:var(--g3);font-size:12.5px;font-weight:600;cursor:pointer;text-align:left}
+.sub-btn:hover{color:#fff}
+.sub-btn.active{color:var(--vlt);background:rgba(22,163,74,.1)}
+.sidebar-toggle{display:none}
+
+.content{flex:1;min-width:0;padding:28px clamp(16px,3vw,40px) 80px}
+.crumb{font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--vlt);margin-bottom:6px}
+.page-tit{font-size:28px;margin-bottom:6px;color:#fff}
+.page-sub{font-size:13.5px;color:var(--g3lt);margin-bottom:26px;max-width:640px}
+
+/* ── CARDS / GRID ── */
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:16px}
+.card{background:var(--card);border:1px solid var(--g1);border-radius:var(--r);padding:18px;box-shadow:var(--sh);transition:transform .18s,box-shadow .18s}
+.card:hover{transform:translateY(-3px);box-shadow:var(--shlg)}
+.card-ic{width:38px;height:38px;border-radius:11px;display:flex;align-items:center;justify-content:center;font-size:17px;margin-bottom:12px;background:rgba(22,163,74,.15)}
+.card-tit{font-family:'Satoshi',sans-serif;font-weight:700;font-size:14.5px;color:#fff;margin-bottom:4px}
+.card-desc{font-size:12.5px;color:var(--g3lt);line-height:1.5;margin-bottom:12px}
+.card-foot{display:flex;align-items:center;justify-content:space-between;font-size:12px;color:var(--g3)}
+.pill{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;padding:3px 9px;border-radius:20px}
+.pill-v{background:var(--vbg);color:var(--vdim)}
+.pill-g{background:var(--glt);color:var(--green)}
+.pill-p{background:rgba(14,74,85,.35);color:var(--petrollt)}
+.pill-r{background:var(--rlt);color:var(--red)}
+
+.stat-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;margin-bottom:26px}
+.stat-card{background:var(--card);border:1px solid var(--g1);border-radius:var(--r);padding:16px 18px;box-shadow:var(--sh)}
+.stat-lbl{font-size:11px;color:var(--g3lt);font-weight:600;margin-bottom:6px}
+.stat-val{font-family:'Satoshi',sans-serif;font-weight:700;font-size:24px;color:#fff}
+.stat-val small{font-size:12px;color:var(--g3lt);font-weight:500}
+
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:11px 18px;border-radius:11px;font-size:13px;font-weight:700;border:none;cursor:pointer;transition:all .18s}
+.btn:hover{transform:translateY(-1px)}
+.bv{background:linear-gradient(135deg,#16A34A,#15803D);color:#fff}
+.bo{background:rgba(255,255,255,.05);color:#EDEAF6;border:1.5px solid rgba(245,158,11,.4)}
+.bo:hover{border-color:var(--vbtn);background:rgba(245,158,11,.1)}
+.bsm{padding:7px 13px;font-size:12px}
+
+.tab-row{display:flex;gap:8px;margin-bottom:22px;flex-wrap:wrap}
+.tab-chip{padding:8px 15px;border-radius:999px;background:var(--card);border:1.5px solid var(--g1);color:var(--g3lt);font-size:12.5px;font-weight:700;cursor:pointer}
+.tab-chip.active{background:var(--black);border-color:var(--vbtn);color:#fff}
+
+.empty{text-align:center;padding:56px 20px;color:var(--g3);border:1.5px dashed var(--g1);border-radius:var(--r)}
+.empty .ei{font-size:38px;margin-bottom:10px}
+.empty p{font-size:13px;max-width:340px;margin:0 auto}
+
+.table-wrap{background:var(--card);border:1px solid var(--g1);border-radius:var(--r);overflow:hidden;overflow-x:auto}
+table{width:100%;border-collapse:collapse;min-width:520px}
+th{text-align:left;padding:12px 16px;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--g3lt);border-bottom:1.5px solid var(--g1);background:var(--off)}
+td{padding:12px 16px;font-size:13px;border-bottom:1px solid var(--g1)}
+tr:last-child td{border-bottom:none}
+
+.badge-role{display:inline-flex;align-items:center;gap:4px;font-size:10.5px;font-weight:700;padding:3px 9px;border-radius:20px;background:var(--card2);color:var(--g3lt);border:1px solid var(--g1)}
+.badge-role.on{background:var(--vbg);color:var(--vdim);border-color:var(--vlt)}
+
+.mock-note{display:flex;gap:10px;align-items:flex-start;background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.3);border-radius:var(--rsm);padding:12px 14px;margin-bottom:22px;font-size:12px;color:var(--g3lt)}
+.mock-note b{color:var(--vbtn)}
+
+.page{display:none}
+.page.active{display:block;animation:fadeIn .25s ease}
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+
+/* ── mobile ── */
+.bottom-nav{display:none;position:fixed;bottom:0;left:0;right:0;z-index:250;background:rgba(30,41,59,.92);backdrop-filter:blur(16px);border-top:1px solid var(--g1);padding:6px 4px calc(6px + env(safe-area-inset-bottom));justify-content:space-around}
+.bn-item{display:flex;flex-direction:column;align-items:center;gap:2px;background:none;border:none;color:var(--g3lt);font-size:9.5px;font-weight:700;padding:6px 4px;cursor:pointer;flex:1}
+.bn-item .ic{font-size:18px}
+.bn-item.active{color:var(--vlt)}
+@media(max-width:900px){
+  .sidebar{position:fixed;left:0;top:60px;bottom:0;z-index:190;background:var(--black);transform:translateX(-100%);transition:transform .25s ease;box-shadow:var(--shlg);width:250px}
+  .sidebar.open{transform:translateX(0)}
+  .sidebar-toggle{display:flex;width:38px;height:38px;border-radius:10px;background:var(--card);border:1px solid var(--g1);align-items:center;justify-content:center;color:#fff;cursor:pointer;flex-shrink:0}
+  .content{padding-bottom:90px}
+  .bottom-nav{display:flex}
+  .role-switch span{display:none}
+}
+@media(max-width:600px){
+  .stat-row{grid-template-columns:repeat(2,1fr)}
+  .page-tit{font-size:23px}
+}
+.sidebar-overlay{display:none;position:fixed;inset:0;background:rgba(2,6,23,.6);z-index:180}
+.sidebar-overlay.open{display:block}
+
+/* ── AUTH MODAL ── */
+.auth-overlay{display:none;position:fixed;inset:0;background:rgba(2,6,23,.72);z-index:400;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(4px)}
+.auth-overlay.open{display:flex}
+.auth-modal{background:var(--card);border:1px solid var(--g1);border-radius:var(--r-lg);box-shadow:var(--shlg);width:100%;max-width:380px;padding:24px}
+.auth-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}
+.auth-head .modal-x{background:none;border:none;color:var(--g3lt);font-size:19px;cursor:pointer;line-height:1}
+.auth-tabs{display:flex;gap:6px;background:var(--off);border-radius:12px;padding:4px;margin-bottom:16px}
+.auth-tab{flex:1;padding:9px;border-radius:9px;background:none;border:none;color:var(--g3lt);font-weight:700;font-size:12.5px;cursor:pointer}
+.auth-tab.active{background:var(--black);color:#fff}
+.auth-input{width:100%;padding:12px 14px;margin-bottom:10px;border-radius:10px;border:1.5px solid var(--g2);background:var(--off);color:#fff;font-size:13.5px;outline:none}
+.auth-input:focus{border-color:var(--v)}
+.auth-err{font-size:12px;color:var(--red);margin-bottom:10px;min-height:14px}
+.auth-link{display:block;width:100%;text-align:center;background:none;border:none;color:var(--vlt);font-size:12px;font-weight:600;cursor:pointer;margin-top:12px}
+
+/* ── AUTH GATE (secções que precisam de login) ── */
+.gate-card{max-width:420px;background:var(--card);border:1px solid var(--g1);border-radius:var(--r);padding:26px;text-align:center}
+.gate-card .gi{font-size:36px;margin-bottom:12px}
+
+/* ── PILL DE PAPEL ── */
+.role-chip{display:inline-flex;align-items:center;gap:6px;background:var(--card2);border:1px solid var(--g1);border-radius:20px;padding:6px 13px;font-size:12px;font-weight:700;color:var(--g3lt);cursor:pointer;transition:all .15s}
+.role-chip.on{background:var(--vbg);color:var(--vdim);border-color:var(--vlt)}
+.role-chip[disabled]{opacity:.45;cursor:not-allowed}
+.status-badge{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:700;padding:5px 12px;border-radius:20px}
+.status-UNVERIFIED{background:var(--card2);color:var(--g3lt)}
+.status-PENDING{background:var(--vbg);color:var(--vdim)}
+.status-VERIFIED{background:var(--glt);color:var(--green)}
+.status-REJECTED{background:var(--rlt);color:var(--red)}
+</style>
+</head>
+<body>
+
+<!-- ═══ TOP BAR ═══ -->
+<div class="topbar">
+  <div style="display:flex;align-items:center;gap:10px">
+    <button class="sidebar-toggle" onclick="toggleSidebar()">☰</button>
+    <div class="logo" onclick="go('home')"><div class="mark">IP</div><span>IP <b>Digital.ao</b></span></div>
+  </div>
+  <div class="top-r" id="topRight">
+    <button class="btn bo bsm" onclick="openAuth()" id="btnEntrar">Entrar</button>
+  </div>
+</div>
+
+<div class="sidebar-overlay" id="sbOverlay" onclick="toggleSidebar()"></div>
+
+<!-- ═══ AUTH MODAL ═══ -->
+<div class="auth-overlay" id="authOverlay">
+  <div class="auth-modal">
+    <div class="auth-head">
+      <div class="logo" style="font-size:16px"><div class="mark" style="width:28px;height:28px;font-size:12px">IP</div><span>IP <b>Digital.ao</b></span></div>
+      <button class="modal-x" onclick="closeAuth()">✕</button>
+    </div>
+    <div class="auth-tabs">
+      <button class="auth-tab active" id="tabLogin" onclick="setAuthTab('login')">Entrar</button>
+      <button class="auth-tab" id="tabSignup" onclick="setAuthTab('signup')">Criar Conta</button>
+    </div>
+    <div class="auth-err" id="authErr"></div>
+    <div id="authFieldsSignup" style="display:none">
+      <input class="auth-input" id="authName" placeholder="Nome completo">
+    </div>
+    <input class="auth-input" id="authEmail" type="email" placeholder="Email" autocomplete="email">
+    <input class="auth-input" id="authPass" type="password" placeholder="Palavra-passe (mín. 6 caracteres)" autocomplete="current-password">
+    <button class="btn bv" style="width:100%" id="authSubmitBtn" onclick="submitAuth()">Entrar</button>
+    <button class="auth-link" onclick="doPasswordReset()">Esqueci-me da palavra-passe</button>
+  </div>
+</div>
+
+<div class="shell">
+  <!-- ═══ SIDEBAR NAV ═══ -->
+  <nav class="sidebar" id="sidebar">
+    <div id="navTree"></div>
+  </nav>
+
+  <!-- ═══ CONTENT ═══ -->
+  <main class="content" id="content"></main>
+</div>
+
+<!-- ═══ BOTTOM NAV (mobile) ═══ -->
+<nav class="bottom-nav">
+  <button class="bn-item" data-sec="marketplace" onclick="go('marketplace')"><span class="ic">🛍️</span>Mercado</button>
+  <button class="bn-item" data-sec="comercio" onclick="go('comercio')"><span class="ic">🛒</span>Comércio</button>
+  <button class="bn-item" data-sec="financeiro" onclick="go('financeiro')"><span class="ic">💳</span>Financeiro</button>
+  <button class="bn-item" data-sec="afiliados" onclick="go('afiliados')"><span class="ic">🤝</span>Afiliados</button>
+  <button class="bn-item" data-sec="identidade" onclick="go('identidade')"><span class="ic">👤</span>Conta</button>
+</nav>
+
+<script>
+/* ══════════════════════════════════════════════════════════════
+   IP DIGITAL AO 2.0 — SKELETON
+   Frontend puro. Sem Firebase, sem escrita real de dinheiro.
+   Dados: mock estático + localStorage para estado de navegação/UI.
+   Objectivo: validar IA (informação/arquitectura) e fluxos, não é o produto final.
+   ══════════════════════════════════════════════════════════════ */
+
+const ROLE_LABELS = {
+  CUSTOMER:'Comprador', SELLER:'Vendedor', AFFILIATE:'Afiliado',
+  SERVICE_PROVIDER:'Prestador de Serviço', FREELANCER:'Freelancer', ADMIN:'Admin'
+};
+const SELF_SERVICE_ROLES = ['CUSTOMER','SELLER','AFFILIATE','SERVICE_PROVIDER','FREELANCER'];
+
+/* ══════════════════════════════════════════════════════════════
+   FIREBASE — projecto de TESTE dedicado (ip-digital-ao-teste),
+   separado do projecto de produção. Usa exactamente a Fase 1:
+   Authentication + Firestore + Cloud Functions. Realtime Database
+   não faz parte do escopo actual — o databaseURL fornecido na
+   configuração da consola NÃO é usado aqui de propósito.
+   ══════════════════════════════════════════════════════════════ */
+const firebaseConfig = {
+  apiKey: "AIzaSyACJT6veQgZlChAAlnnaflDOpsqdKPKGvY",
+  authDomain: "ip-digital-ao-teste.firebaseapp.com",
+  projectId: "ip-digital-ao-teste",
+  storageBucket: "ip-digital-ao-teste.firebasestorage.app",
+  messagingSenderId: "272795772529",
+  appId: "1:272795772529:web:e238612cd83cd441fe1dd0"
+};
+firebase.initializeApp(firebaseConfig);
+const fbAuth = firebase.auth();
+const fdb = firebase.firestore();
+
+/* ══════════════ DIAGNÓSTICO TEMPORÁRIO — REMOVER DEPOIS ══════════════
+   Regista, com timestamp relativo, exactamente onde o fluxo de auth
+   está — tanto na consola (para inspeção via chrome://inspect / USB
+   debugging) como visivelmente no próprio ecrã (para quando só há o
+   telemóvel, sem DevTools ligado). Não muda nenhum comportamento. */
+window.__diagStart = null;
+window.__diagLastStep = null;
+function diagLog(step, extra){
+  if(window.__diagStart===null) window.__diagStart = performance.now();
+  const ms = Math.round(performance.now() - window.__diagStart);
+  window.__diagLastStep = step + ' (+' + ms + 'ms)';
+  console.log('[DIAG +' + ms + 'ms] ' + step, extra!==undefined ? extra : '');
+}
+/* ═══════════════════════════════════════════════════════════════════ */
+
+let AUTH = { user:null, uid:null, userDoc:null, profileDoc:null, isAdmin:false, hasPendingVerification:false, ready:false };
+
+function openAuth(){ document.getElementById('authOverlay').classList.add('open'); document.getElementById('authErr').style.color='var(--red)'; }
+function closeAuth(){ document.getElementById('authOverlay').classList.remove('open'); document.getElementById('authErr').textContent=''; }
+let authTab='login';
+function setAuthTab(t){
+  authTab=t;
+  document.getElementById('tabLogin').classList.toggle('active', t==='login');
+  document.getElementById('tabSignup').classList.toggle('active', t==='signup');
+  document.getElementById('authFieldsSignup').style.display = t==='signup' ? 'block' : 'none';
+  document.getElementById('authSubmitBtn').textContent = t==='signup' ? 'Criar Conta' : 'Entrar';
+  document.getElementById('authErr').textContent='';
+}
+function translateAuthError(code){
+  const m = {
+    'auth/email-already-in-use':'Este email já tem conta. Tenta entrar.',
+    'auth/invalid-email':'Email inválido.',
+    'auth/weak-password':'A palavra-passe precisa de pelo menos 6 caracteres.',
+    'auth/wrong-password':'Palavra-passe incorreta.',
+    'auth/invalid-credential':'Email ou palavra-passe incorretos.',
+    'auth/user-not-found':'Não existe conta com este email.',
+    'auth/too-many-requests':'Demasiadas tentativas. Espera um pouco e tenta de novo.',
+    'auth/network-request-failed':'Sem ligação à internet.',
+    'auth/operation-not-allowed':'O registo por email/palavra-passe ainda não está activado neste projecto Firebase (Authentication → Sign-in method).',
+    'auth/api-key-not-valid.-please-pass-a-valid-api-key.':'A chave de API do Firebase não é válida para este projecto.'
+  };
+  // Fallback inclui o código real do erro em vez de uma frase genérica —
+  // sem isto, qualquer erro fora da lista acima aparecia como texto vago
+  // e era fácil de confundir com "não aconteceu nada".
+  return m[code] || ('Não foi possível concluir' + (code ? ' (' + code + ')' : '') + '. Verifica a tua ligação à internet ou tenta novamente.');
+}
+function submitAuth(){
+  const errEl = document.getElementById('authErr');
+  const btn = document.getElementById('authSubmitBtn');
+  try{
+    const email = document.getElementById('authEmail').value.trim();
+    const pass = document.getElementById('authPass').value;
+    errEl.style.color='var(--red)'; errEl.textContent='';
+    if(!email || !pass){ errEl.textContent='Preenche email e palavra-passe.'; return; }
+    btn.disabled=true;
+    window.__diagStart = performance.now(); // reinicia o cronómetro de diagnóstico a cada tentativa
+
+    // Guarda de segurança: sem isto, se o pedido ao Firebase ficasse pendurado
+    // (rede instável, comum ao abrir este ficheiro localmente em vez de via
+    // Hosting), o botão ficava bloqueado para sempre e NADA aparecia no ecrã —
+    // exactamente o sintoma reportado. Ao fim de 15s mostra um erro visível.
+    let settled = false;
+    const timeoutId = setTimeout(function(){
+      if(settled) return;
+      settled = true;
+      // DIAGNÓSTICO: mostra exactamente em que passo ficou preso.
+      errEl.style.color='var(--red)';
+      errEl.textContent = 'BLOQUEADO em: ' + window.__diagLastStep + ' — sem resposta em 15s.';
+      console.warn('[DIAG] TIMEOUT — última etapa registada:', window.__diagLastStep);
+      btn.disabled = false;
+    }, 15000);
+
+    diagLog(authTab==='signup' ? 'AUTH STEP A START (createUserWithEmailAndPassword)' : 'AUTH STEP D START (signInWithEmailAndPassword)');
+
+    const action = authTab==='signup'
+      ? fbAuth.createUserWithEmailAndPassword(email, pass).then(function(cred){
+          diagLog('AUTH STEP A SUCCESS (createUserWithEmailAndPassword)', {uid: cred.user.uid});
+          const name = document.getElementById('authName').value.trim() || 'Utilizador';
+          diagLog('AUTH STEP A2 START (updateProfile)');
+          return cred.user.updateProfile({displayName:name}).then(function(){
+            diagLog('AUTH STEP A2 SUCCESS (updateProfile)');
+            return bootstrapUserDocs(cred.user, name);
+          });
+        })
+      : fbAuth.signInWithEmailAndPassword(email, pass).then(function(cred){
+          diagLog('AUTH STEP D SUCCESS (signInWithEmailAndPassword)', {uid: cred.user.uid});
+          return cred;
+        });
+
+    action.then(function(){
+      if(settled) return;
+      settled = true; clearTimeout(timeoutId);
+      diagLog('FLOW COMPLETE — closeAuth()');
+      closeAuth();
+    }).catch(function(err){
+      if(settled) return;
+      settled = true; clearTimeout(timeoutId);
+      // DIAGNÓSTICO: mostra o erro REAL, sem mascarar em texto genérico.
+      diagLog('FLOW FAILED', {code: err && err.code, message: err && err.message});
+      console.error('Erro de autenticação/registo (detalhe completo):', err);
+      errEl.style.color='var(--red)';
+      errEl.textContent = 'Falhou em: ' + window.__diagLastStep.split(' (+')[0] +
+        ' | code: ' + (err && err.code || '(sem code)') +
+        ' | message: ' + (err && err.message || '(sem message)');
+    }).finally(function(){
+      btn.disabled = false;
+    });
+  }catch(e){
+    // Qualquer erro síncrono inesperado (ex: elemento em falta, SDK Firebase
+    // mal inicializado) fica visível ao utilizador em vez de morrer
+    // silenciosamente só na consola do navegador.
+    console.error('Erro inesperado no formulário de autenticação:', e);
+    if(errEl){ errEl.style.color='var(--red)'; errEl.textContent = 'Erro inesperado: ' + (e && e.message ? e.message : 'tenta recarregar a página.'); }
+    if(btn) btn.disabled = false;
+  }
+}
+function doPasswordReset(){
+  const email = document.getElementById('authEmail').value.trim();
+  const errEl = document.getElementById('authErr');
+  if(!email){ errEl.style.color='var(--red)'; errEl.textContent='Escreve o teu email no campo acima primeiro.'; return; }
+  fbAuth.sendPasswordResetEmail(email)
+    .then(function(){ errEl.style.color='var(--vlt)'; errEl.textContent='✅ Email de recuperação enviado.'; })
+    .catch(function(err){ errEl.style.color='var(--red)'; errEl.textContent=translateAuthError(err.code); });
+}
+function logout(){ fbAuth.signOut(); }
+
+/* Cria users/{uid} + profiles/{uid} na primeira vez que a conta existe.
+   Valores de arranque batem exactamente com o que as Firestore rules exigem
+   em "allow create" — se não baterem, a escrita é recusada pelo servidor. */
+function bootstrapUserDocs(user, nameOverride){
+  const uid = user.uid;
+  const now = firebase.firestore.FieldValue.serverTimestamp();
+  const userRef = fdb.collection('users').doc(uid);
+  diagLog('FIRESTORE STEP E START (get users/{uid})', {uid});
+  return userRef.get().then(function(snap){
+    diagLog('FIRESTORE STEP E SUCCESS (get users/{uid})', {exists: snap.exists});
+    if(snap.exists) return;
+    const baseUser = {
+      uid, name: nameOverride || user.displayName || '', email: user.email || '',
+      phone: user.phoneNumber || '', photoURL: user.photoURL || '',
+      roles: ['CUSTOMER'], status: 'active', verificationStatus: 'UNVERIFIED',
+      ipScore: 0, rating: 0,
+      // ROLE ≠ STATUS COMERCIAL: nasce sempre 'NONE'. Só passa a 'PENDING'
+      // pelo trigger de servidor onUserRolesChanged quando o utilizador
+      // ativar SELLER/SERVICE_PROVIDER/FREELANCER em "Gerir papéis".
+      sellerStatus: 'NONE', serviceProviderStatus: 'NONE', freelancerStatus: 'NONE',
+      createdAt: now, updatedAt: now
+    };
+    diagLog('FIRESTORE STEP B START (set users/{uid})');
+    return userRef.set(baseUser).then(function(){
+      diagLog('FIRESTORE STEP B SUCCESS (set users/{uid})');
+      diagLog('FIRESTORE STEP C START (set profiles/{uid})');
+      return fdb.collection('profiles').doc(uid).set({
+        uid, displayName: baseUser.name, photoURL: baseUser.photoURL, bio:'', location:'', specialties:[],
+        verificationStatus:'UNVERIFIED', ipScore:0, rating:0, salesCount:0, createdAt: now, updatedAt: now
+      }).then(function(){ diagLog('FIRESTORE STEP C SUCCESS (set profiles/{uid})'); });
+    });
+  });
+}
+
+function loadAuthState(user){
+  if(!user){
+    AUTH = {user:null,uid:null,userDoc:null,profileDoc:null,isAdmin:false,hasPendingVerification:false,ready:true};
+    renderTopbar(); buildNav(); render();
+    return Promise.resolve();
+  }
+  diagLog('SESSION STEP H0 START (bootstrapUserDocs dentro de loadAuthState)');
+  return bootstrapUserDocs(user).then(function(){
+    diagLog('SESSION STEP H START (getIdTokenResult)');
+    diagLog('SESSION STEP E2 START (get users/{uid}, via loadAuthState)');
+    diagLog('SESSION STEP F START (get profiles/{uid})');
+    diagLog('SESSION STEP G START (query verificationRequests PENDING)');
+    return Promise.all([
+      user.getIdTokenResult().then(function(r){ diagLog('SESSION STEP H SUCCESS (getIdTokenResult)'); return r; }),
+      fdb.collection('users').doc(user.uid).get().then(function(r){ diagLog('SESSION STEP E2 SUCCESS (get users/{uid})'); return r; }),
+      fdb.collection('profiles').doc(user.uid).get().then(function(r){ diagLog('SESSION STEP F SUCCESS (get profiles/{uid})'); return r; }),
+      fdb.collection('verificationRequests').where('uid','==',user.uid).where('status','==','PENDING').limit(1).get()
+        .then(function(r){ diagLog('SESSION STEP G SUCCESS (query verificationRequests)'); return r; })
+    ]);
+  }).then(function(results){
+    const tokenResult = results[0], uSnap = results[1], pSnap = results[2], vSnap = results[3];
+    AUTH = {
+      user, uid:user.uid,
+      userDoc: uSnap.exists ? uSnap.data() : null,
+      profileDoc: pSnap.exists ? pSnap.data() : null,
+      isAdmin: tokenResult.claims.admin === true,
+      hasPendingVerification: !vSnap.empty,
+      ready:true
+    };
+    diagLog('SESSION FLOW COMPLETE (loadAuthState)');
+    renderTopbar(); buildNav(); render();
+  });
+}
+fbAuth.onAuthStateChanged(function(user){
+  diagLog('onAuthStateChanged FIRED', {hasUser: !!user});
+  loadAuthState(user).catch(function(err){
+    diagLog('SESSION FLOW FAILED (loadAuthState)', {code: err && err.code, message: err && err.message});
+    console.error('Erro ao carregar estado de autenticação (detalhe completo):', err);
+  });
+});
+
+function renderTopbar(){
+  const el = document.getElementById('topRight');
+  if(!AUTH.uid){
+    el.innerHTML = `<button class="btn bo bsm" onclick="openAuth()">Entrar</button>`;
+    return;
+  }
+  const initials = (AUTH.userDoc && AUTH.userDoc.name ? AUTH.userDoc.name : (AUTH.user.email||'?')).trim().charAt(0).toUpperCase();
+  el.innerHTML = `
+    <div class="icon-btn" title="Notificações">🔔<span class="dot-badge"></span></div>
+    <div class="icon-btn" title="Carrinho" onclick="go('comercio','carrinho')">🛒</div>
+    <div class="avatar" title="A tua conta" onclick="go('identidade','contas')">${initials}</div>`;
+}
+
+/* Auto-adiciona/remove um papel auto-atribuível. Nunca ADMIN — não existe
+   sequer botão para isso na interface, e mesmo que existisse, a Firestore
+   rule "allow update" recusa qualquer roles que contenha 'ADMIN'. */
+function toggleSelfRole(role){
+  if(!AUTH.uid){ openAuth(); return; }
+  if(role==='ADMIN') return;
+  const current = (AUTH.userDoc && AUTH.userDoc.roles) || ['CUSTOMER'];
+  const has = current.includes(role);
+  let next = has ? current.filter(function(r){return r!==role;}) : current.concat([role]);
+  if(next.length===0) next = ['CUSTOMER'];
+  fdb.collection('users').doc(AUTH.uid).update({ roles: next, updatedAt: firebase.firestore.FieldValue.serverTimestamp() })
+    .then(function(){ AUTH.userDoc.roles = next; buildNav(); render(); })
+    .catch(function(err){ console.error('Erro ao atualizar papéis.', err); alert('Não foi possível atualizar: '+(err.message||'')); });
+}
+
+function requestVerification(){
+  if(!AUTH.uid){ openAuth(); return; }
+  if(AUTH.hasPendingVerification || (AUTH.userDoc && AUTH.userDoc.verificationStatus==='VERIFIED')) return;
+  fdb.collection('verificationRequests').add({
+    uid: AUTH.uid, status:'PENDING', requestedAt: firebase.firestore.FieldValue.serverTimestamp()
+  }).then(function(){
+    AUTH.hasPendingVerification = true;
+    render();
+  }).catch(function(err){
+    console.error('Erro ao pedir verificação.', err);
+    alert('Não foi possível enviar o pedido: '+(err.message||''));
+  });
+}
+
+/* ── ÁRVORE DE NAVEGAÇÃO (espelha exactamente a IA pedida) ── */
+const NAV = {
+  identidade:{ic:'👤',label:'Identidade',subs:{
+    contas:'Contas', papeis:'Papéis', verificacao:'Verificação'
+  }},
+  marketplace:{ic:'🛍️',label:'Marketplace',subs:{
+    digital:'Digital', fisico:'Físico', servicos:'Serviços', freelancers:'Freelancers'
+  }},
+  comercio:{ic:'🛒',label:'Comércio',subs:{
+    carrinho:'Carrinho', checkout:'Checkout', pedidos:'Pedidos', entregas:'Entregas'
+  }},
+  financeiro:{ic:'💳',label:'Financeiro',subs:{
+    pagamentos:'Pagamentos', transacoes:'Transações', wallet:'Wallet', ledger:'Ledger', comissoes:'Comissões', saques:'Saques'
+  }},
+  afiliados:{ic:'🤝',label:'Afiliados',subs:{
+    marketplace:'Marketplace de Ofertas', links:'Links', tracking:'Tracking', comissoes:'Comissões'
+  }},
+  confianca:{ic:'🛡️',label:'Confiança',subs:{
+    avaliacoes:'Avaliações', score:'IP Score', disputas:'Disputas'
+  }},
+  administracao:{ic:'⚙️',label:'Administração',subs:{
+    utilizadores:'Utilizadores', ofertas:'Ofertas', pedidos:'Pedidos', financeiro:'Financeiro', moderacao:'Moderação', analytics:'Analytics'
+  }}
+};
+
+let ST = {
+  section: localStorage.getItem('ipd2_sec') || 'identidade',
+  sub: localStorage.getItem('ipd2_sub') || 'contas'
+};
+
+function buildNav(){
+  const el = document.getElementById('navTree');
+  const visibleSections = Object.keys(NAV).filter(function(secKey){
+    if(secKey==='administracao') return AUTH.isAdmin === true; // gate real, baseado em custom claim
+    return true;
+  });
+  el.innerHTML = visibleSections.map(secKey=>{
+    const sec = NAV[secKey];
+    const isOpen = ST.section===secKey;
+    const subs = Object.keys(sec.subs).map(subKey=>
+      `<button class="sub-btn ${isOpen&&ST.sub===subKey?'active':''}" onclick="go('${secKey}','${subKey}')">${sec.subs[subKey]}</button>`
+    ).join('');
+    return `<div class="sec-group">
+      <button class="sec-btn ${isOpen?'active':''}" onclick="toggleSection('${secKey}')"><span class="ic">${sec.ic}</span>${sec.label}</button>
+      <div class="sub-list ${isOpen?'open':''}" id="sub-${secKey}">${subs}</div>
+    </div>`;
+  }).join('');
+  document.querySelectorAll('.bn-item').forEach(b=>b.classList.toggle('active', b.dataset.sec===ST.section));
+}
+function toggleSection(secKey){
+  if(ST.section===secKey){ go(secKey, Object.keys(NAV[secKey].subs)[0]); return; }
+  go(secKey, Object.keys(NAV[secKey].subs)[0]);
+}
+function go(secKey, subKey){
+  if(!NAV[secKey]) secKey='identidade';
+  if(secKey==='administracao' && AUTH.isAdmin!==true){ secKey='identidade'; subKey='contas'; }
+  if(!subKey || !NAV[secKey].subs[subKey]) subKey = Object.keys(NAV[secKey].subs)[0];
+  ST.section = secKey; ST.sub = subKey;
+  localStorage.setItem('ipd2_sec', secKey);
+  localStorage.setItem('ipd2_sub', subKey);
+  buildNav();
+  render();
+  closeSidebarMobile();
+  window.scrollTo(0,0);
+}
+function toggleSidebar(){
+  document.getElementById('sidebar').classList.toggle('open');
+  document.getElementById('sbOverlay').classList.toggle('open');
+}
+function closeSidebarMobile(){
+  if(window.innerWidth<=900){
+    document.getElementById('sidebar').classList.remove('open');
+    document.getElementById('sbOverlay').classList.remove('open');
+  }
+}
+/* ── MOCK DATA (só para Marketplace/Comércio/Financeiro/Afiliados/Confiança/
+   Administração — fora de escopo desta fase. Identidade usa dados reais acima.) ── */
+const MOCK = {
+  digital:[
+    {n:'Sistema WhatsApp Vendedor', t:'Ebook', p:3500, s:'Publicado'},
+    {n:'Clareamento Íntimo Natural', t:'Ebook', p:4500, s:'Publicado'},
+    {n:'Curso de Tráfego Pago AO', t:'Curso em Vídeo', p:12000, s:'Rascunho'}
+  ],
+  fisico:[
+    {n:'Powerbank 20000mAh', t:'Eletrónica', p:18500, s:'Em stock'},
+    {n:'Kit Skincare Facial', t:'Beleza', p:9200, s:'Em stock'}
+  ],
+  servicos:[
+    {n:'Criação de Landing Page', t:'Design', p:15000, s:'Publicado'},
+    {n:'Gestão de Tráfego Meta Ads', t:'Marketing', p:0, s:'Sob orçamento'}
+  ],
+  freelancers:[
+    {n:'Edição de vídeo para Reels', t:'Projecto aberto', p:8000, s:'3 propostas'},
+    {n:'Tradução PT↔EN, 20 páginas', t:'Projecto aberto', p:6000, s:'1 proposta'}
+  ],
+  pedidos:[
+    {id:'IP4F2A91', item:'Sistema WhatsApp Vendedor', v:3500, s:'Confirmado'},
+    {id:'IP7B0C22', item:'Kit Skincare Facial', v:9200, s:'A caminho'},
+    {id:'IP1D9E03', item:'Curso de Tráfego Pago AO', v:12000, s:'Pendente'}
+  ],
+  transacoes:[
+    {id:'TX-9021', tipo:'Venda', v:3500, s:'Concluída'},
+    {id:'TX-9022', tipo:'Comissão Afiliado', v:-2100, s:'Concluída'},
+    {id:'TX-9023', tipo:'Saque', v:-15000, s:'Pendente'}
+  ],
+  afiliadosOfertas:[
+    {n:'Sistema WhatsApp Vendedor', com:'60%', v:2100},
+    {n:'Curso de Tráfego Pago AO', com:'50%', v:6000},
+    {n:'Kit Skincare Facial', com:'15%', v:1380}
+  ],
+  disputas:[
+    {id:'DSP-014', motivo:'Produto não recebido', s:'Em análise'},
+  ],
+  utilizadores:[
+    {n:'Mário Domingos', papeis:['seller','affiliate'], s:'Activo'},
+    {n:'Fernanda M.', papeis:['customer'], s:'Activo'},
+    {n:'Carlos N.', papeis:['freelancer'], s:'Pendente verificação'}
+  ]
+};
+
+function fmt(n){ return new Intl.NumberFormat('pt-AO').format(n); }
+function escHtml(s){ return String(s==null?'':s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+function verificationLabel(){
+  const status = (AUTH.userDoc && AUTH.userDoc.verificationStatus) || 'UNVERIFIED';
+  if(AUTH.hasPendingVerification && status!=='VERIFIED') return 'Pendente de revisão';
+  return {UNVERIFIED:'Não verificado', PENDING:'Pendente de revisão', VERIFIED:'Verificado', REJECTED:'Rejeitado — podes tentar de novo'}[status] || status;
+}
+function loginGate(msg){
+  return `<div class="gate-card"><div class="gi">🔒</div><div class="card-tit" style="font-size:15px;margin-bottom:8px">Precisas de sessão iniciada</div><div class="card-desc" style="margin-bottom:16px">${escHtml(msg)}</div><button class="btn bv" onclick="openAuth()">Entrar ou criar conta</button></div>`;
+}
+function mockNote(txt){
+  return `<div class="mock-note">🧪 <div><b>Protótipo estrutural</b> — ${txt} Sem Firebase, sem pagamentos reais, sem escrita de saldo. Serve para validar fluxo e arquitectura de informação.</div></div>`;
+}
+function crumb(sec,sub){ return `<div class="crumb">${NAV[sec].label} / ${NAV[sec].subs[sub]}</div>`; }
+function emptyState(icon,title,desc){
+  return `<div class="empty"><div class="ei">${icon}</div><div class="tit" style="color:#fff;margin-bottom:6px;font-size:15px">${title}</div><p>${desc}</p></div>`;
+}
+
+/* ── RENDER POR SECÇÃO/SUB ── */
+function render(){
+  const el = document.getElementById('content');
+  const {section, sub} = ST;
+  el.innerHTML = crumb(section,sub) + `<h1 class="page-tit">${NAV[section].subs[sub]}</h1>` + renderBody(section,sub) ;
+}
+
+function renderBody(sec,sub){
+  const key = sec+':'+sub;
+  const R = RENDERERS[key];
+  if(R) return R();
+  return `<p class="page-sub">Módulo por especificar.</p>` + emptyState('🧩','Ainda não definido','Este ecrã aparece na IA mas o comportamento ainda não foi especificado no briefing de negócio.');
+}
+
+const RENDERERS = {
+
+/* ── IDENTIDADE (dados reais — Firebase Auth + Firestore) ── */
+'identidade:contas': ()=>{
+  if(!AUTH.uid) return loginGate('Entra para veres e geres a tua conta.');
+  const u = AUTH.userDoc || {};
+  return `
+  <p class="page-sub">Uma identidade central por pessoa. Os papéis abaixo determinam o que esta conta pode fazer — não são contas separadas.</p>
+  <div class="stat-row">
+    <div class="stat-card"><div class="stat-lbl">Nome</div><div class="stat-val" style="font-size:16px">${escHtml(u.name||AUTH.user.displayName||'—')}</div></div>
+    <div class="stat-card"><div class="stat-lbl">Email</div><div class="stat-val" style="font-size:16px">${escHtml(AUTH.user.email||'—')}</div></div>
+    <div class="stat-card"><div class="stat-lbl">Telefone</div><div class="stat-val" style="font-size:16px">${escHtml(u.phone||'Não definido')}</div></div>
+    <div class="stat-card"><div class="stat-lbl">UID (identificador real)</div><div class="stat-val" style="font-size:12px;font-family:monospace">${AUTH.uid}</div></div>
+  </div>
+  <div class="grid">
+    <div class="card">
+      <div class="card-tit">Papéis activos</div>
+      <div class="card-desc">${(u.roles||['CUSTOMER']).map(r=>ROLE_LABELS[r]).join(' · ')}</div>
+      <button class="btn bo bsm" onclick="go('identidade','papeis')">Gerir papéis →</button>
+    </div>
+    <div class="card">
+      <div class="card-tit">Verificação</div>
+      <div class="card-desc" style="margin-bottom:10px">${verificationLabel()}</div>
+      <span class="status-badge status-${u.verificationStatus||'UNVERIFIED'}">${verificationLabel()}</span>
+    </div>
+  </div>
+  <button class="btn bo" style="margin-top:20px" onclick="logout()">Sair da conta</button>
+  ${mockNote('edição de nome/telefone/foto e 2FA ainda não têm UI — os campos já existem em users/{uid} e podem ser escritos pelo dono via Firestore rules.')}`;
+},
+
+'identidade:papeis': ()=>{
+  if(!AUTH.uid) return loginGate('Entra para gerires os teus papéis.');
+  const current = (AUTH.userDoc && AUTH.userDoc.roles) || ['CUSTOMER'];
+  const roleIcons = {CUSTOMER:'🛒',SELLER:'🏪',AFFILIATE:'🤝',SERVICE_PROVIDER:'🧰',FREELANCER:'💼',ADMIN:'⚙️'};
+  const roleDesc = {
+    CUSTOMER:'Compra produtos digitais, físicos e serviços.',
+    SELLER:'Publica e gere ofertas para venda.',
+    AFFILIATE:'Promove ofertas de terceiros por comissão.',
+    SERVICE_PROVIDER:'Oferece serviços com preço fixo ou por orçamento.',
+    FREELANCER:'Candidata-se a projectos publicados por outros.'
+  };
+  // Papel ≠ estado comercial. Ter o papel só abre o pedido; quem decide
+  // se a conta pode operar de facto (PENDING → ACTIVE) é um processo do
+  // lado do servidor, ainda por implementar nesta fase — aqui só se
+  // mostra o estado actual, sem nenhum botão para o cliente o alterar.
+  const commercialStatusField = {SELLER:'sellerStatus', SERVICE_PROVIDER:'serviceProviderStatus', FREELANCER:'freelancerStatus'};
+  const statusLabel = {NONE:null, PENDING:'Estatuto comercial: pendente de aprovação', ACTIVE:'Estatuto comercial: activo', SUSPENDED:'Estatuto comercial: suspenso'};
+  const statusPillClass = {PENDING:'pill-v', ACTIVE:'pill-g', SUSPENDED:'pill-r'};
+  return `
+  <p class="page-sub">Activa ou desactiva papéis livremente — cada escrita é validada pelas Firestore rules do servidor, não apenas pela interface. Nunca vais ver um botão de "Admin" aqui: esse papel não existe em Firestore, é atribuído fora da aplicação.</p>
+  <div class="grid">
+    ${SELF_SERVICE_ROLES.map(r=>{
+      const on = current.includes(r);
+      const statusField = commercialStatusField[r];
+      const commercialStatus = statusField ? ((AUTH.userDoc && AUTH.userDoc[statusField]) || 'NONE') : null;
+      const statusText = commercialStatus ? statusLabel[commercialStatus] : null;
+      return `<div class="card">
+        <div class="card-ic">${roleIcons[r]}</div>
+        <div class="card-tit">${ROLE_LABELS[r]}</div>
+        <div class="card-desc">${roleDesc[r]}</div>
+        ${on && statusText ? `<span class="pill ${statusPillClass[commercialStatus]}" style="margin-bottom:10px;display:inline-block">${statusText}</span>` : ''}
+        <button class="role-chip ${on?'on':''}" onclick="toggleSelfRole('${r}')">${on?'✓ Activo — clica para desactivar':'Activar'}</button>
+      </div>`;
+    }).join('')}
+    <div class="card" style="opacity:.6">
+      <div class="card-ic">⚙️</div>
+      <div class="card-tit">Admin</div>
+      <div class="card-desc">Gere utilizadores, ofertas, moderação e financeiro. Nunca auto-atribuível — só via Cloud Function invocada por outro admin, ou script de arranque com credenciais de servidor.</div>
+      <button class="role-chip" disabled>Não disponível aqui</button>
+    </div>
+  </div>`;
+},
+
+'identidade:verificacao': ()=>{
+  if(!AUTH.uid) return loginGate('Entra para veres o estado de verificação da tua conta.');
+  const status = (AUTH.userDoc && AUTH.userDoc.verificationStatus) || 'UNVERIFIED';
+  const canRequest = status==='UNVERIFIED' || status==='REJECTED';
+  const showPending = AUTH.hasPendingVerification || status==='PENDING';
+  return `
+  <p class="page-sub">O estado só muda por decisão de um admin (Cloud Function <code>reviewVerification</code>). Nenhum botão nesta página consegue escrever directamente <code>verificationStatus</code> — a Firestore rule bloqueia essa escrita ao dono da conta.</p>
+  <div class="card" style="max-width:460px">
+    <div class="card-tit">Estado actual</div>
+    <div style="margin:10px 0"><span class="status-badge status-${status}">${verificationLabel()}</span></div>
+    ${showPending
+      ? `<div class="card-desc">Pedido enviado. Aguarda revisão por um administrador.</div>`
+      : status==='VERIFIED'
+        ? `<div class="card-desc">Conta verificada.</div>`
+        : `<div class="card-desc" style="margin-bottom:12px">${status==='REJECTED' ? 'O pedido anterior foi rejeitado. Podes submeter um novo.' : 'Ainda não submeteste nenhum pedido de verificação.'}</div>
+           <button class="btn bv" onclick="requestVerification()">Submeter para verificação</button>`
+    }
+  </div>
+  ${mockNote('upload de documento de identidade ainda não tem UI — o pedido cria só o registo verificationRequests; a revisão (aprovar/rejeitar) acontece no futuro painel Admin, chamando a Cloud Function reviewVerification.')}`;
+},
+
+/* ── MARKETPLACE ── */
+'marketplace:digital': ()=>renderOfferGrid('digital','📦','Produtos Digitais','ebooks, cursos, templates — entrega automática por link'),
+'marketplace:fisico': ()=>renderOfferGrid('fisico','📮','Produtos Físicos','stock, envio e confirmação de entrega'),
+'marketplace:servicos': ()=>renderOfferGrid('servicos','🧰','Serviços','preço fixo ou sob orçamento, com briefing'),
+'marketplace:freelancers': ()=>`
+  <p class="page-sub">Projectos publicados por compradores/empresas. Freelancers submetem propostas.</p>
+  <div class="tab-row"><span class="tab-chip active">Abertos</span><span class="tab-chip">Em curso</span><span class="tab-chip">Concluídos</span></div>
+  <div class="grid">
+    ${MOCK.freelancers.map(f=>`
+      <div class="card">
+        <div class="card-ic">💼</div>
+        <div class="card-tit">${f.n}</div>
+        <div class="card-desc">${f.t}</div>
+        <div class="card-foot"><span>${f.p?fmt(f.p)+' Kz (orçamento base)':'Sem orçamento definido'}</span><span class="pill pill-p">${f.s}</span></div>
+      </div>`).join('')}
+  </div>
+  ${mockNote('submissão de proposta, chat e aceitação ficam neste ecrã.')}`,
+
+/* ── COMÉRCIO ── */
+'comercio:carrinho': ()=>`
+  <p class="page-sub">Itens de diferentes vendedores/tipos de oferta podem coexistir no mesmo carrinho.</p>
+  <div class="table-wrap"><table><thead><tr><th>Item</th><th>Tipo</th><th>Qtd</th><th>Preço</th><th></th></tr></thead><tbody>
+    <tr><td>Sistema WhatsApp Vendedor</td><td><span class="pill pill-v">Digital</span></td><td>1</td><td>3.500 Kz</td><td><button class="btn bo bsm">Remover</button></td></tr>
+    <tr><td>Powerbank 20000mAh</td><td><span class="pill pill-g">Físico</span></td><td>2</td><td>37.000 Kz</td><td><button class="btn bo bsm">Remover</button></td></tr>
+  </tbody></table></div>
+  <div style="display:flex;justify-content:flex-end;margin-top:18px;gap:14px;align-items:center">
+    <div style="text-align:right"><div style="font-size:11px;color:var(--g3lt)">Total</div><div style="font-family:'Satoshi';font-weight:700;font-size:22px;color:#fff">40.500 Kz</div></div>
+    <button class="btn bv" onclick="go('comercio','checkout')">Finalizar Compra →</button>
+  </div>
+  ${mockNote('o carrinho real precisa de reservar stock físico e não bloquear entrega digital.')}`,
+
+'comercio:checkout': ()=>`
+  <p class="page-sub">Um checkout único mesmo com itens de vendedores diferentes — split de pagamento acontece no financeiro, não aqui.</p>
+  <div class="grid" style="grid-template-columns:1.3fr 1fr">
+    <div class="card">
+      <div class="card-tit">Dados de entrega</div>
+      <div class="card-desc">Nome, telefone, email, morada (só se houver item físico no carrinho).</div>
+      <div class="card-tit" style="margin-top:16px">Método de pagamento</div>
+      <div style="display:flex;gap:8px;margin-top:8px"><span class="pill pill-v">Multicaixa Express</span><span class="pill pill-p">Transferência</span></div>
+    </div>
+    <div class="card">
+      <div class="card-tit">Resumo</div>
+      <div class="card-foot" style="margin-bottom:6px"><span>Subtotal</span><span>40.500 Kz</span></div>
+      <div class="card-foot" style="margin-bottom:6px"><span>Entrega</span><span>2.000 Kz</span></div>
+      <div class="card-foot" style="font-weight:700;color:#fff;border-top:1px solid var(--g1);padding-top:8px"><span>Total</span><span>42.500 Kz</span></div>
+      <button class="btn bv" style="width:100%;margin-top:14px" onclick="go('comercio','pedidos')">Confirmar Pedido</button>
+    </div>
+  </div>
+  ${mockNote('a confirmação real de pagamento tem de vir do gateway (server-side), não deste botão.')}`,
+
+'comercio:pedidos': ()=>`
+  <p class="page-sub">Histórico de pedidos, por papel de comprador.</p>
+  <div class="table-wrap"><table><thead><tr><th>Pedido</th><th>Item</th><th>Valor</th><th>Estado</th></tr></thead><tbody>
+    ${MOCK.pedidos.map(o=>`<tr><td><strong style="color:var(--vlt)">${o.id}</strong></td><td>${o.item}</td><td>${fmt(o.v)} Kz</td><td><span class="pill ${o.s==='Confirmado'?'pill-g':o.s==='Pendente'?'pill-v':'pill-p'}">${o.s}</span></td></tr>`).join('')}
+  </tbody></table></div>`,
+
+'comercio:entregas': ()=>`
+  <p class="page-sub">Estado de entrega — digital é automático (link), físico precisa de tracking.</p>
+  <div class="grid">
+    <div class="card"><div class="card-ic">⚡</div><div class="card-tit">Digital — Sistema WhatsApp Vendedor</div><div class="card-desc">Entregue por link automático após confirmação de pagamento.</div><span class="pill pill-g">Entregue</span></div>
+    <div class="card"><div class="card-ic">🚚</div><div class="card-tit">Físico — Powerbank 20000mAh</div><div class="card-desc">Enviado via estafeta parceiro, Luanda.</div><span class="pill pill-v">A caminho</span></div>
+  </div>
+  ${mockNote('integração com estafetas/tracking real fica fora desta fase.')}`,
+
+/* ── FINANCEIRO ── */
+'financeiro:pagamentos': ()=>`
+  <p class="page-sub">Métodos aceites na plataforma. A confirmação de cada pagamento tem de ser validada no servidor, nunca só no cliente.</p>
+  <div class="grid">
+    <div class="card"><div class="card-ic">📱</div><div class="card-tit">Multicaixa Express</div><div class="card-desc">Pagamento com referência, confirmação via EMIS/agregador.</div><span class="pill pill-v">Activo</span></div>
+    <div class="card"><div class="card-ic">🏦</div><div class="card-tit">Transferência Bancária</div><div class="card-desc">Confirmação manual com comprovativo.</div><span class="pill pill-v">Activo</span></div>
+  </div>`,
+
+'financeiro:transacoes': ()=>`
+  <p class="page-sub">Todos os movimentos — vendas, comissões, saques. Cada linha é imutável (append-only).</p>
+  <div class="table-wrap"><table><thead><tr><th>ID</th><th>Tipo</th><th>Valor</th><th>Estado</th></tr></thead><tbody>
+    ${MOCK.transacoes.map(t=>`<tr><td>${t.id}</td><td>${t.tipo}</td><td style="color:${t.v<0?'var(--red)':'var(--vlt)'}">${t.v<0?'-':'+'}${fmt(Math.abs(t.v))} Kz</td><td><span class="pill ${t.s==='Concluída'?'pill-g':'pill-v'}">${t.s}</span></td></tr>`).join('')}
+  </tbody></table></div>`,
+
+'financeiro:wallet': ()=>`
+  <div class="stat-row">
+    <div class="stat-card"><div class="stat-lbl">Saldo disponível</div><div class="stat-val">18.400 <small>Kz</small></div></div>
+    <div class="stat-card"><div class="stat-lbl">A processar</div><div class="stat-val">2.100 <small>Kz</small></div></div>
+    <div class="stat-card"><div class="stat-lbl">Total já sacado</div><div class="stat-val">64.000 <small>Kz</small></div></div>
+  </div>
+  ${mockNote('estes números NUNCA podem ser escritos pelo cliente. Cloud Function + ledger são a única fonte de verdade.')}
+  <button class="btn bv" onclick="go('financeiro','saques')">Solicitar Saque →</button>`,
+
+'financeiro:ledger': ()=>`
+  <p class="page-sub">Livro-razão — cada crédito tem um débito correspondente. Nunca editável, só consultável.</p>
+  <div class="table-wrap"><table><thead><tr><th>Data</th><th>Descrição</th><th>Débito</th><th>Crédito</th></tr></thead><tbody>
+    <tr><td>02/09</td><td>Venda — Sistema WhatsApp Vendedor</td><td>—</td><td>3.500 Kz</td></tr>
+    <tr><td>02/09</td><td>Comissão afiliado (60%)</td><td>2.100 Kz</td><td>—</td></tr>
+    <tr><td>01/09</td><td>Saque aprovado</td><td>15.000 Kz</td><td>—</td></tr>
+  </tbody></table></div>`,
+
+'financeiro:comissoes': ()=>`
+  <p class="page-sub">Comissões devidas por venda, pendentes de pagamento ao vendedor/afiliado.</p>
+  <div class="table-wrap"><table><thead><tr><th>Oferta</th><th>% Comissão</th><th>Valor devido</th></tr></thead><tbody>
+    ${MOCK.afiliadosOfertas.map(a=>`<tr><td>${a.n}</td><td>${a.com}</td><td>${fmt(a.v)} Kz</td></tr>`).join('')}
+  </tbody></table></div>`,
+
+'financeiro:saques': ()=>`
+  <p class="page-sub">Pedido de saque — mínimo 1.000 Kz, requer verificação de Nível 3.</p>
+  <div class="card" style="max-width:380px">
+    <div class="card-tit">Novo pedido</div>
+    <div class="card-desc">Saldo disponível: 18.400 Kz</div>
+    <input placeholder="Valor a sacar (Kz)" style="width:100%;padding:12px;margin:10px 0;border-radius:10px;border:1.5px solid var(--g2);background:var(--off);color:#fff">
+    <button class="btn bv" style="width:100%">Solicitar Saque</button>
+  </div>
+  ${mockNote('aprovação fica no painel Admin → Financeiro, nunca automática sem revisão nesta fase.')}`,
+
+/* ── AFILIADOS ── */
+'afiliados:marketplace': ()=>`
+  <p class="page-sub">Ofertas disponíveis para promoção, com a comissão de cada uma.</p>
+  <div class="grid">
+    ${MOCK.afiliadosOfertas.map(a=>`
+      <div class="card">
+        <div class="card-ic">🤝</div>
+        <div class="card-tit">${a.n}</div>
+        <div class="card-desc">Comissão: ${a.com} · ${fmt(a.v)} Kz por venda</div>
+        <button class="btn bo bsm">Gerar link</button>
+      </div>`).join('')}
+  </div>`,
+
+'afiliados:links': ()=>`
+  <p class="page-sub">Os teus links activos, por oferta.</p>
+  <div class="table-wrap"><table><thead><tr><th>Oferta</th><th>Link</th><th></th></tr></thead><tbody>
+    <tr><td>Sistema WhatsApp Vendedor</td><td style="font-family:monospace;font-size:11.5px;color:var(--g3lt)">ipdigital.ao/p/whatsapp-vendedor?aff=mario123</td><td><button class="btn bo bsm">Copiar</button></td></tr>
+  </tbody></table></div>`,
+
+'afiliados:tracking': ()=>`
+  <div class="stat-row">
+    <div class="stat-card"><div class="stat-lbl">Cliques (30 dias)</div><div class="stat-val">312</div></div>
+    <div class="stat-card"><div class="stat-lbl">Conversões</div><div class="stat-val">14</div></div>
+    <div class="stat-card"><div class="stat-lbl">Taxa de conversão</div><div class="stat-val">4.5%</div></div>
+  </div>
+  ${mockNote('tracking real precisa de atribuição server-side (cookie/click-id), não só localStorage.')}`,
+
+'afiliados:comissoes': ()=>`
+  <div class="table-wrap"><table><thead><tr><th>Oferta</th><th>Vendas</th><th>Comissão devida</th></tr></thead><tbody>
+    ${MOCK.afiliadosOfertas.map(a=>`<tr><td>${a.n}</td><td>${Math.floor(a.v/1000)}</td><td>${fmt(a.v)} Kz</td></tr>`).join('')}
+  </tbody></table></div>`,
+
+/* ── CONFIANÇA ── */
+'confianca:avaliacoes': ()=>`
+  <p class="page-sub">Avaliações só ficam visíveis após transação confirmada — evita reviews falsas.</p>
+  <div class="grid">
+    <div class="card"><div class="card-tit">★★★★★ Fernanda M.</div><div class="card-desc">"Entrega rápida, produto conforme descrito."</div><span class="pill pill-g">Compra verificada</span></div>
+    <div class="card"><div class="card-tit">★★★★☆ Carlos N.</div><div class="card-desc">"Bom serviço, comunicação podia ser mais rápida."</div><span class="pill pill-g">Compra verificada</span></div>
+  </div>`,
+
+'confianca:score': ()=>`
+  <p class="page-sub">IP Score — reputação agregada por papel (vendedor, afiliado, freelancer).</p>
+  <div class="stat-row">
+    <div class="stat-card"><div class="stat-lbl">IP Score (Vendedor)</div><div class="stat-val" style="color:var(--vlt)">92</div></div>
+    <div class="stat-card"><div class="stat-lbl">Taxa de conclusão</div><div class="stat-val">98%</div></div>
+    <div class="stat-card"><div class="stat-lbl">Tempo médio resposta</div><div class="stat-val">4h</div></div>
+  </div>
+  ${mockNote('fórmula do score, pesos e anti-fraude ficam para especificação de negócio dedicada.')}`,
+
+'confianca:disputas': ()=>`
+  <p class="page-sub">Disputas abertas entre comprador e vendedor/prestador.</p>
+  <div class="table-wrap"><table><thead><tr><th>ID</th><th>Motivo</th><th>Estado</th></tr></thead><tbody>
+    ${MOCK.disputas.map(d=>`<tr><td>${d.id}</td><td>${d.motivo}</td><td><span class="pill pill-v">${d.s}</span></td></tr>`).join('')}
+  </tbody></table></div>
+  ${mockNote('fluxo de mediação e reembolso parcial/total precisa de regra de negócio própria.')}`,
+
+/* ── ADMINISTRAÇÃO ── */
+'administracao:utilizadores': ()=>`
+  <p class="page-sub">Só visível com papel Admin.</p>
+  <div class="table-wrap"><table><thead><tr><th>Nome</th><th>Papéis</th><th>Estado</th></tr></thead><tbody>
+    ${MOCK.utilizadores.map(u=>`<tr><td>${u.n}</td><td>${u.papeis.map(p=>`<span class="pill pill-p" style="margin-right:4px">${ROLE_LABELS[p]}</span>`).join('')}</td><td><span class="pill ${u.s==='Activo'?'pill-g':'pill-v'}">${u.s}</span></td></tr>`).join('')}
+  </tbody></table></div>`,
+
+'administracao:ofertas': ()=>`
+  <p class="page-sub">Moderação de ofertas antes de irem ao ar (produtos, serviços, projectos).</p>
+  <div class="table-wrap"><table><thead><tr><th>Oferta</th><th>Tipo</th><th>Estado</th><th></th></tr></thead><tbody>
+    <tr><td>Curso de Tráfego Pago AO</td><td>Digital</td><td><span class="pill pill-v">Aguarda aprovação</span></td><td><button class="btn bv bsm">Aprovar</button></td></tr>
+  </tbody></table></div>`,
+
+'administracao:pedidos': ()=>`
+  <div class="table-wrap"><table><thead><tr><th>Pedido</th><th>Item</th><th>Valor</th><th>Estado</th></tr></thead><tbody>
+    ${MOCK.pedidos.map(o=>`<tr><td>${o.id}</td><td>${o.item}</td><td>${fmt(o.v)} Kz</td><td><span class="pill ${o.s==='Confirmado'?'pill-g':'pill-v'}">${o.s}</span></td></tr>`).join('')}
+  </tbody></table></div>`,
+
+'administracao:financeiro': ()=>`
+  <div class="stat-row">
+    <div class="stat-card"><div class="stat-lbl">Receita total</div><div class="stat-val">1.2M <small>Kz</small></div></div>
+    <div class="stat-card"><div class="stat-lbl">Comissões devidas</div><div class="stat-val">84K <small>Kz</small></div></div>
+    <div class="stat-card"><div class="stat-lbl">Saques pendentes</div><div class="stat-val">3</div></div>
+  </div>
+  ${mockNote('painel financeiro admin real precisa de reconciliação com o gateway de pagamento.')}`,
+
+'administracao:moderacao': ()=>`
+  <div class="grid">
+    <div class="card"><div class="card-ic">🚩</div><div class="card-tit">Denúncia — produto duplicado</div><div class="card-desc">Reportado por 2 utilizadores</div><span class="pill pill-r">Por rever</span></div>
+  </div>`,
+
+'administracao:analytics': ()=>`
+  <div class="stat-row">
+    <div class="stat-card"><div class="stat-lbl">Utilizadores activos</div><div class="stat-val">1.240</div></div>
+    <div class="stat-card"><div class="stat-lbl">GMV (mês)</div><div class="stat-val">1.2M <small>Kz</small></div></div>
+    <div class="stat-card"><div class="stat-lbl">Taxa conversão</div><div class="stat-val">3.1%</div></div>
+    <div class="stat-card"><div class="stat-lbl">Novos vendedores</div><div class="stat-val">18</div></div>
+  </div>
+  ${mockNote('gráficos reais exigem eventos server-side agregados, não contagem no cliente.')}`
+};
+
+function renderOfferGrid(key, icon, title, sub){
+  const items = MOCK[key];
+  return `<p class="page-sub">${sub}</p>
+  <div class="tab-row"><span class="tab-chip active">Todos</span><span class="tab-chip">Publicados</span><span class="tab-chip">Rascunhos</span></div>
+  <div class="grid">
+    ${items.map(o=>`
+      <div class="card">
+        <div class="card-ic">${icon}</div>
+        <div class="card-tit">${o.n}</div>
+        <div class="card-desc">${o.t}</div>
+        <div class="card-foot"><span>${o.p?fmt(o.p)+' Kz':'Sob consulta'}</span><span class="pill ${o.s==='Publicado'||o.s==='Em stock'?'pill-g':'pill-v'}">${o.s}</span></div>
+      </div>`).join('')}
+  </div>
+  ${mockNote('CRUD real de ofertas, upload de imagens e workflow de aprovação ficam neste ecrã.')}`;
+}
+
+buildNav();
+render();
+</script>
+</body>
+</html>
