@@ -12,6 +12,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-functions-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js"></script>
 <style>
 :root{
   --black:#0F172A;--card:#1E293B;--card2:#334155;
@@ -55,7 +56,7 @@ img{display:block;max-width:100%}
 .sidebar{width:230px;flex-shrink:0;border-right:1px solid var(--g1);padding:18px 12px;position:sticky;top:60px;height:calc(100vh - 60px);overflow-y:auto}
 .sec-group{margin-bottom:6px}
 .sec-btn{width:100%;display:flex;align-items:center;gap:10px;padding:11px 12px;border-radius:12px;background:none;border:none;color:var(--g3lt);font-size:13.5px;font-weight:600;cursor:pointer;text-align:left;transition:background .15s,color .15s}
-.sec-btn .ic{font-size:16px;width:20px;text-align:center;flex-shrink:0}
+.sec-btn .ic{font-size:16px;width:20px;text-align:center;flex-shrink:0;color:#22C55E}
 .sec-btn:hover{background:var(--card);color:#fff}
 .sec-btn.active{background:var(--card);color:#fff;box-shadow:inset 3px 0 0 var(--vbtn)}
 .sub-list{display:none;flex-direction:column;padding:2px 0 8px 30px;gap:1px}
@@ -180,7 +181,7 @@ tr:last-child td{border-bottom:none}
 /* ── mobile ── */
 .bottom-nav{display:none;position:fixed;bottom:0;left:0;right:0;z-index:250;background:rgba(30,41,59,.92);backdrop-filter:blur(16px);border-top:1px solid var(--g1);padding:6px 4px calc(6px + env(safe-area-inset-bottom));justify-content:space-around}
 .bn-item{display:flex;flex-direction:column;align-items:center;gap:2px;background:none;border:none;color:var(--g3lt);font-size:9.5px;font-weight:700;padding:6px 4px;cursor:pointer;flex:1}
-.bn-item .ic{font-size:18px}
+.bn-item .ic{font-size:18px;color:#22C55E}
 .bn-item.active{color:var(--vlt)}
 @media(max-width:900px){
   .sidebar{position:fixed;left:0;top:60px;bottom:0;z-index:190;background:var(--black);transform:translateX(-100%);transition:transform .25s ease;box-shadow:var(--shlg);width:250px}
@@ -344,6 +345,22 @@ tr:last-child td{border-bottom:none}
   </div>
 </div>
 
+<!-- ═══ CHECKOUT (oferta → pedido) ═══
+     Resumo é só visual, a partir da cache do Marketplace; a criação
+     real do pedido (confirmarCheckout, no bloco JS) relê a oferta no
+     servidor. O comprador nunca escreve preço, vendedorId ou estado —
+     ver comentário junto da função. Reutiliza os mesmos estilos do
+     modal de Auth/Configurar entrega (.auth-overlay/.auth-modal). -->
+<div class="auth-overlay" id="checkoutOverlay">
+  <div class="auth-modal">
+    <div class="auth-head">
+      <div class="logo" style="font-size:16px"><span class="ic" style="color:var(--vlt)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg></span><span>Checkout</span></div>
+      <button class="modal-x" onclick="closeCheckout()">✕</button>
+    </div>
+    <div id="checkoutBody"></div>
+  </div>
+</div>
+
 <!-- ═══ LOADER GLOBAL OFICIAL — IP Digital AO ═══
      Visual fixo (referência oficial): badge "IP" + anel verde a girar,
      wordmark "IP DIGITAL.AO", barra indeterminada, texto de estado.
@@ -447,6 +464,73 @@ firebase.initializeApp(firebaseConfig);
 const fbAuth = firebase.auth();
 const fdb = firebase.firestore();
 const fbFunctions = firebase.functions();
+const fbStorage = firebase.storage();
+
+/* ══════════════════════════════════════════════════════════════
+   STORAGE — SDK carregado e client inicializado apenas para permitir
+   compressão/preparação local. O UPLOAD REAL fica bloqueado (flag
+   abaixo) enquanto o projecto não tiver Blaze activo, o bucket
+   configurado e as Storage Rules publicadas. Nada aqui contacta o
+   Storage sem essa flag estar a true.
+   ══════════════════════════════════════════════════════════════ */
+const STORAGE_UPLOAD_ENABLED = false; // mudar para true só depois de Blaze + Storage + Rules publicadas
+const IMG_MAX_DIM = 1000;
+const IMG_QUALITY = 0.75;
+const IMG_MAX_BYTES = 5 * 1024 * 1024; // 5 MB — limite do ficheiro ORIGINAL, verificado antes de comprimir
+const IMG_ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+
+/* Comprime/redimensiona uma imagem 100% no browser (canvas), sem
+   nenhum pedido de rede. O limite de 5 MB é verificado sobre o
+   ficheiro ORIGINAL, antes de qualquer compressão. Devolve um Blob
+   WebP (nunca Base64, nunca gravado directamente no Firestore),
+   pronto a enviar quando o upload real for activado. */
+function compressImagemOferta(file){
+  return new Promise(function(resolve, reject){
+    if(!file){ reject(new Error('Nenhum ficheiro selecionado.')); return; }
+    if(IMG_ALLOWED_TYPES.indexOf(file.type) === -1){
+      reject(new Error('Formato não suportado. Usa JPEG, PNG ou WebP.')); return;
+    }
+    if(file.size > IMG_MAX_BYTES){
+      reject(new Error('Ficheiro original demasiado grande (máx. 5 MB).')); return;
+    }
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = function(){
+      URL.revokeObjectURL(url);
+      let w = img.width, h = img.height;
+      if(w > IMG_MAX_DIM || h > IMG_MAX_DIM){
+        if(w >= h){ h = Math.round(h * IMG_MAX_DIM / w); w = IMG_MAX_DIM; }
+        else { w = Math.round(w * IMG_MAX_DIM / h); h = IMG_MAX_DIM; }
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      canvas.toBlob(function(blob){
+        if(!blob){ reject(new Error('Falha ao comprimir a imagem.')); return; }
+        resolve(blob);
+      }, 'image/webp', IMG_QUALITY);
+    };
+    img.onerror = function(){ URL.revokeObjectURL(url); reject(new Error('Não foi possível ler a imagem.')); };
+    img.src = url;
+  });
+}
+
+/* Upload real para o Storage — path ofertas/{vendedorId}/{ofertaId}/capa.webp,
+   alinhado com a validação de UID que vai para as Storage Rules.
+   Fica bloqueado por STORAGE_UPLOAD_ENABLED até essa fase estar pronta;
+   até lá, rejeita de forma explícita em vez de tentar contactar o Storage. */
+function uploadImagemOferta(ofertaId, file){
+  if(!STORAGE_UPLOAD_ENABLED){
+    return Promise.reject(new Error('Upload de imagens ainda não está disponível nesta fase (Storage por configurar).'));
+  }
+  if(!AUTH.uid) return Promise.reject(new Error('Precisas de sessão iniciada.'));
+  return compressImagemOferta(file).then(function(compressedBlob){
+    const path = 'ofertas/' + AUTH.uid + '/' + ofertaId + '/capa.webp';
+    return fbStorage.ref(path).put(compressedBlob, { contentType: 'image/webp' });
+  }).then(function(snap){
+    return snap.ref.getDownloadURL();
+  });
+}
 
 /* ══════════════ DIAGNÓSTICO TEMPORÁRIO — REMOVER DEPOIS ══════════════
    Regista, com timestamp relativo, exactamente onde o fluxo de auth
@@ -609,7 +693,11 @@ function bootstrapUserDocs(user, nameOverride){
   diagLog('FIRESTORE STEP E START (get users/{uid})', {uid});
   return userRef.get().then(function(snap){
     diagLog('FIRESTORE STEP E SUCCESS (get users/{uid})', {exists: snap.exists});
-    if(snap.exists) return;
+    // Devolve sempre os dados efectivos do utilizador (existentes ou
+    // recém-criados) — loadAuthState reutiliza este valor em vez de
+    // voltar a ler users/{uid} logo a seguir (eram 2 leituras do mesmo
+    // documento em cada arranque de sessão; passa a ser 1).
+    if(snap.exists) return snap.data();
     const baseUser = {
       uid, name: nameOverride || user.displayName || '', email: user.email || '',
       phone: user.phoneNumber || '', photoURL: user.photoURL || '',
@@ -628,7 +716,7 @@ function bootstrapUserDocs(user, nameOverride){
       return fdb.collection('profiles').doc(uid).set({
         uid, displayName: baseUser.name, photoURL: baseUser.photoURL, bio:'', location:'', specialties:[],
         verificationStatus:'UNVERIFIED', ipScore:0, rating:0, salesCount:0, createdAt: now, updatedAt: now
-      }).then(function(){ diagLog('FIRESTORE STEP C SUCCESS (set profiles/{uid})'); });
+      }).then(function(){ diagLog('FIRESTORE STEP C SUCCESS (set profiles/{uid})'); return baseUser; });
     });
   });
 }
@@ -640,23 +728,22 @@ function loadAuthState(user){
     return Promise.resolve();
   }
   diagLog('SESSION STEP H0 START (bootstrapUserDocs dentro de loadAuthState)');
-  return bootstrapUserDocs(user).then(function(){
+  return bootstrapUserDocs(user).then(function(userData){
     diagLog('SESSION STEP H START (getIdTokenResult)');
-    diagLog('SESSION STEP E2 START (get users/{uid}, via loadAuthState)');
     diagLog('SESSION STEP F START (get profiles/{uid})');
     diagLog('SESSION STEP G START (query verificationRequests PENDING)');
     return Promise.all([
       user.getIdTokenResult().then(function(r){ diagLog('SESSION STEP H SUCCESS (getIdTokenResult)'); return r; }),
-      fdb.collection('users').doc(user.uid).get().then(function(r){ diagLog('SESSION STEP E2 SUCCESS (get users/{uid})'); return r; }),
+      Promise.resolve(userData), // já lido/criado por bootstrapUserDocs — sem 2ª leitura de users/{uid}
       fdb.collection('profiles').doc(user.uid).get().then(function(r){ diagLog('SESSION STEP F SUCCESS (get profiles/{uid})'); return r; }),
       fdb.collection('verificationRequests').where('uid','==',user.uid).where('status','==','PENDING').limit(1).get()
         .then(function(r){ diagLog('SESSION STEP G SUCCESS (query verificationRequests)'); return r; })
     ]);
   }).then(function(results){
-    const tokenResult = results[0], uSnap = results[1], pSnap = results[2], vSnap = results[3];
+    const tokenResult = results[0], userData = results[1], pSnap = results[2], vSnap = results[3];
     AUTH = {
       user, uid:user.uid,
-      userDoc: uSnap.exists ? uSnap.data() : null,
+      userDoc: userData,
       profileDoc: pSnap.exists ? pSnap.data() : null,
       isAdmin: tokenResult.claims.admin === true,
       hasPendingVerification: !vSnap.empty,
@@ -972,7 +1059,10 @@ function buildNav(){
   el.innerHTML = visibleSections.map(secKey=>{
     const sec = NAV[secKey];
     const isOpen = ST.section===secKey;
-    const subs = Object.keys(sec.subs).map(subKey=>
+    // Sub-chaves com prefixo "_" são internas (ex: detalhe de oferta,
+    // acedido só por clique num card) — válidas para go()/render(), mas
+    // não aparecem na sidebar como se fossem uma página navegável à parte.
+    const subs = Object.keys(sec.subs).filter(function(k){ return k.charAt(0)!=='_'; }).map(subKey=>
       `<button class="sub-btn ${isOpen&&ST.sub===subKey?'active':''}" onclick="go('${secKey}','${subKey}')">${sec.subs[subKey]}</button>`
     ).join('');
     return `<div class="sec-group">
@@ -1054,6 +1144,10 @@ const MOCK = {
 };
 
 function fmt(n){ return new Intl.NumberFormat('pt-AO').format(n); }
+function fmtData(ts){
+  if(!ts || typeof ts.toDate !== 'function') return '—';
+  try{ return ts.toDate().toLocaleDateString('pt-AO', {day:'2-digit',month:'2-digit',year:'numeric'}); }catch(e){ return '—'; }
+}
 function escHtml(s){ return String(s==null?'':s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
 
 /* ══════════════════════════════════════════════════════════════
@@ -1799,13 +1893,160 @@ fbAuth.onAuthStateChanged(function(){ V1.cache = {}; V1.loading = {}; });
 /* ── Novos itens de navegação (aditivos — não removem/alteram os
    existentes de Identidade, que continuam intocados) ── */
 NAV.comercio.subs.ofertas = 'Minhas Ofertas';
+NAV.marketplace.subs.digital = 'Digital';
+NAV.marketplace.subs._detalhe = 'Detalhe da oferta';
 NAV.financeiro.subs.vendas = 'Minhas Vendas';
 
 /* ══════ MARKETPLACE › DIGITAL (real) ══════ */
+/* ══════ MARKETPLACE › DIGITAL — pesquisa/filtros/ordenação locais ══════
+   Nunca dispara uma leitura nova ao Firestore por causa de pesquisa,
+   preço, ordenação ou "limpar filtros" — tudo corre sobre
+   V1.cache['ofertasPublicadas'], já carregado uma vez (.limit(60)).
+   Só o <div id="marketDigitalResults"> é actualizado (innerHTML), nunca
+   a página inteira — por isso a caixa de pesquisa nunca perde o foco a
+   meio de uma palavra. Categoria fica de fora: `ofertas` não tem esse
+   campo (confirmado na rule de create) e não se inventa aqui — a
+   categoriasSection() já existente é decorativa (Digital/Físico/
+   Serviços/Freelancers), não um filtro sobre um campo de oferta. */
+let V1_marketFiltro = { termo:'', precoMin:'', precoMax:'', ordenacao:'recentes' };
+let V1_marketDebounce = null;
+
+function marketFiltrarOrdenar(ofertas){
+  const termo = V1_marketFiltro.termo.trim().toLowerCase();
+  const min = parseFloat(V1_marketFiltro.precoMin);
+  const max = parseFloat(V1_marketFiltro.precoMax);
+  let out = ofertas.filter(function(o){
+    if(termo){
+      const alvo = ((o.titulo||'') + ' ' + (o.descricao||'')).toLowerCase();
+      if(alvo.indexOf(termo) === -1) return false;
+    }
+    if(!isNaN(min) && o.preco < min) return false;
+    if(!isNaN(max) && o.preco > max) return false;
+    return true;
+  });
+  if(V1_marketFiltro.ordenacao === 'preco_asc') out = out.slice().sort(function(a,b){ return a.preco - b.preco; });
+  else if(V1_marketFiltro.ordenacao === 'preco_desc') out = out.slice().sort(function(a,b){ return b.preco - a.preco; });
+  // 'recentes' já é a ordem devolvida pelo Firestore (orderBy criadoEm desc) — sem reordenar
+  return out;
+}
+function marketResultsHtml(){
+  const todas = V1.cache['ofertasPublicadas'] || [];
+  const filtradas = marketFiltrarOrdenar(todas);
+  if(!filtradas.length){
+    return emptyState('🔎','Sem resultados para estes filtros','Experimenta outro termo ou limpa os filtros.') +
+      `<button class="btn bo bsm" onclick="marketLimparFiltros()">Limpar filtros</button>`;
+  }
+  return `<div class="grid">
+    ${filtradas.map(function(o){
+      return `<div class="card">
+        ${o.imagemUrl ? `<img src="${escHtml(o.imagemUrl)}" alt="${escHtml(o.titulo)}" style="width:100%;max-height:140px;object-fit:cover;border-radius:8px;margin-bottom:10px;cursor:pointer" onclick="abrirDetalheOferta('${o.id}')">` : ''}
+        <div class="card-tit" style="cursor:pointer" onclick="abrirDetalheOferta('${o.id}')">${escHtml(o.titulo)}</div>
+        <div class="card-desc">${escHtml(o.descricao||'')}</div>
+        <div class="card-foot"><span>${fmt(o.preco)} ${escHtml(o.moeda||'Kz')}</span></div>
+        <button class="btn bv bsm" style="margin-top:10px;width:100%" onclick="abrirCheckout('${o.id}')">Comprar</button>
+      </div>`;
+    }).join('')}
+  </div>`;
+}
+function marketRenderResultados(){
+  const box = document.getElementById('marketDigitalResults');
+  if(box) box.innerHTML = marketResultsHtml();
+}
+function marketOnInputTermo(val){
+  V1_marketFiltro.termo = val;
+  clearTimeout(V1_marketDebounce);
+  V1_marketDebounce = setTimeout(marketRenderResultados, 180);
+}
+function marketOnPreco(campo, val){
+  V1_marketFiltro[campo] = val;
+  clearTimeout(V1_marketDebounce);
+  V1_marketDebounce = setTimeout(marketRenderResultados, 180);
+}
+function marketOnOrdenacao(val){
+  V1_marketFiltro.ordenacao = val;
+  marketRenderResultados();
+}
+function marketLimparFiltros(){
+  V1_marketFiltro = { termo:'', precoMin:'', precoMax:'', ordenacao:'recentes' };
+  const t = document.getElementById('marketTermoInput'); if(t) t.value = '';
+  const pmin = document.getElementById('marketPrecoMin'); if(pmin) pmin.value = '';
+  const pmax = document.getElementById('marketPrecoMax'); if(pmax) pmax.value = '';
+  const ord = document.getElementById('marketOrdenacaoSelect'); if(ord) ord.value = 'recentes';
+  marketRenderResultados();
+}
+function marketFiltrosBarHtml(){
+  return `<div class="card" style="margin-bottom:18px;padding:16px">
+    <input class="auth-input" id="marketTermoInput" placeholder="Pesquisar por título ou descrição…" value="${escHtml(V1_marketFiltro.termo)}" oninput="marketOnInputTermo(this.value)">
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:8px">
+      <input class="auth-input" id="marketPrecoMin" type="number" min="0" placeholder="Preço mín." style="flex:1;min-width:110px" value="${escHtml(V1_marketFiltro.precoMin)}" oninput="marketOnPreco('precoMin', this.value)">
+      <input class="auth-input" id="marketPrecoMax" type="number" min="0" placeholder="Preço máx." style="flex:1;min-width:110px" value="${escHtml(V1_marketFiltro.precoMax)}" oninput="marketOnPreco('precoMax', this.value)">
+      <select id="marketOrdenacaoSelect" style="flex:1;min-width:140px;padding:9px;border-radius:8px;border:1px solid var(--g1)" onchange="marketOnOrdenacao(this.value)">
+        <option value="recentes" ${V1_marketFiltro.ordenacao==='recentes'?'selected':''}>Mais recentes</option>
+        <option value="preco_asc" ${V1_marketFiltro.ordenacao==='preco_asc'?'selected':''}>Menor preço</option>
+        <option value="preco_desc" ${V1_marketFiltro.ordenacao==='preco_desc'?'selected':''}>Maior preço</option>
+      </select>
+    </div>
+    <button class="btn bo bsm" style="margin-top:10px" onclick="marketLimparFiltros()">Limpar filtros</button>
+  </div>`;
+}
+
+/* ══════ MARKETPLACE › DETALHE DA OFERTA ══════
+   Caminho normal (oferta já veio na lista de 60): 0 leituras novas —
+   só procura por id em V1.cache['ofertasPublicadas']. Só se não estiver
+   lá (ex: link directo a uma oferta publicada depois da lista ter
+   carregado) faz UMA leitura pontual a ofertas/{id}, e só mostra o
+   conteúdo se estado==='PUBLICADA' — nunca uma oferta em RASCUNHO/
+   AGUARDA_APROVACAO/REJEITADA/SUSPENSA passa por aqui como disponível. */
+let V1_ofertaDetalheId = null;
+function abrirDetalheOferta(ofertaId){
+  V1_ofertaDetalheId = ofertaId;
+  go('marketplace', '_detalhe');
+}
+RENDERERS['marketplace:_detalhe'] = function(){
+  if(!V1_ofertaDetalheId){
+    return emptyState('🛒','Nenhuma oferta seleccionada','Volta ao Marketplace e escolhe um produto.') +
+      `<button class="btn bo bsm" onclick="go('marketplace','digital')">← Voltar ao Marketplace</button>`;
+  }
+  const id = V1_ofertaDetalheId;
+  const doCache = (V1.cache['ofertasPublicadas'] || []).find(function(o){ return o.id === id; });
+  if(doCache){
+    return marketDetalheHtml(doCache);
+  }
+  // Não estava no lote já carregado — uma única leitura pontual, cacheada
+  // por id para não repetir se o utilizador for e voltar na mesma sessão.
+  const key = 'ofertaDetalhe:' + id;
+  if(V1.cache[key]===undefined){
+    v1Fetch(key, function(){
+      return fdb.collection('ofertas').doc(id).get().then(function(snap){
+        // Formato "snap-like" (docs[]) para reaproveitar o v1Fetch genérico.
+        const existeEPublicada = snap.exists && snap.data().estado === 'PUBLICADA';
+        return { docs: existeEPublicada ? [{ id: snap.id, data: function(){ return snap.data(); } }] : [] };
+      });
+    });
+    return skeletonGrid();
+  }
+  const encontrada = V1.cache[key][0];
+  if(!encontrada){
+    return emptyState('🚫','Oferta não disponível','Esta oferta não existe, foi removida, ou já não está publicada.') +
+      `<button class="btn bo bsm" onclick="go('marketplace','digital')">← Voltar ao Marketplace</button>`;
+  }
+  return marketDetalheHtml(encontrada);
+};
+function marketDetalheHtml(o){
+  return `<div class="card" style="max-width:520px">
+    ${o.imagemUrl ? `<img src="${escHtml(o.imagemUrl)}" alt="${escHtml(o.titulo)}" style="width:100%;max-height:280px;object-fit:cover;border-radius:10px;margin-bottom:14px">` : ''}
+    <div class="card-tit" style="font-size:18px;margin-bottom:10px">${escHtml(o.titulo)}</div>
+    <div class="card-desc" style="margin-bottom:16px;white-space:pre-wrap">${escHtml(o.descricao||'')}</div>
+    <div class="card-foot" style="margin-bottom:16px"><span style="font-size:17px;font-weight:700">${fmt(o.preco)} ${escHtml(o.moeda||'Kz')}</span></div>
+    <button class="btn bv" style="width:100%;margin-bottom:10px" onclick="abrirCheckout('${o.id}')">Comprar</button>
+    <button class="btn bo bsm" onclick="go('marketplace','digital')">← Voltar ao Marketplace</button>
+  </div>`;
+}
+
 RENDERERS['marketplace:digital'] = function(){
   const key = 'ofertasPublicadas';
   if(V1.cache[key]===undefined){
-    v1Fetch(key, function(){ return fdb.collection('ofertas').where('estado','==','PUBLICADA').orderBy('criadoEm','desc').get(); });
+    v1Fetch(key, function(){ return fdb.collection('ofertas').where('estado','==','PUBLICADA').orderBy('criadoEm','desc').limit(60).get(); });
     return heroSection() + categoriasSection() + skeletonGrid();
   }
   const ofertas = V1.cache[key];
@@ -1814,22 +2055,59 @@ RENDERERS['marketplace:digital'] = function(){
       emptyState('🛒','Ainda sem ofertas publicadas','Quando um vendedor aprovado publicar um produto e um Admin aprovar, aparece aqui.') +
       comoFuncionaSection() + confiancaSection() + founderMuralSection() + ctaSection();
   }
-  return heroSection() + categoriasSection() + `<div class="grid">
-    ${ofertas.map(function(o){
-      return `<div class="card">
-        <div class="card-tit">${escHtml(o.titulo)}</div>
-        <div class="card-desc">${escHtml(o.descricao||'')}</div>
-        <div class="card-foot"><span>${fmt(o.preco)} ${escHtml(o.moeda||'Kz')}</span></div>
-        <button class="btn bv bsm" style="margin-top:10px;width:100%" onclick="comprarOferta('${o.id}', this)">Comprar</button>
-      </div>`;
-    }).join('')}
-  </div>`
-  + comoFuncionaSection() + confiancaSection() + founderMuralSection() + ctaSection();
+  return heroSection() + categoriasSection() + marketFiltrosBarHtml() +
+    `<div id="marketDigitalResults">${marketResultsHtml()}</div>`
+    + comoFuncionaSection() + confiancaSection() + founderMuralSection() + ctaSection();
 };
 
 /* ══════ COMÉRCIO › MINHAS OFERTAS (vendedor) ══════ */
 let V1_novaOfertaOpen = false;
-function toggleNovaOferta(){ V1_novaOfertaOpen = !V1_novaOfertaOpen; render(); }
+let V1_novaOfertaImagemFile = null;       // File já comprimido, pronto a enviar quando Storage estiver activo
+let V1_novaOfertaImagemPreview = null;    // object URL local, só para pré-visualização
+let V1_ofertaEmEdicaoId = null;           // id da oferta actualmente aberta em edição (RASCUNHO/REJEITADA)
+let V1_edicaoImagemFile = null;
+let V1_edicaoImagemPreview = null;
+
+function toggleNovaOferta(){
+  V1_novaOfertaOpen = !V1_novaOfertaOpen;
+  V1_ofertaEmEdicaoId = null; // não deixa dois formulários abertos ao mesmo tempo
+  render();
+}
+
+/* Handler comum ao input de imagem: comprime no browser e guarda o
+   File resultante em memória. Não contacta o Storage — ver
+   uploadImagemOferta / STORAGE_UPLOAD_ENABLED. */
+function onImagemOfertaSelecionada(inputEl, alvo){
+  const file = inputEl.files && inputEl.files[0];
+  const errId = alvo === 'nova' ? 'novaOfertaImagemErr' : 'edicaoImagemErr';
+  const errEl = document.getElementById(errId);
+  if(errEl) errEl.textContent = '';
+  if(!file) return;
+  compressImagemOferta(file).then(function(compressed){
+    const previewUrl = URL.createObjectURL(compressed);
+    if(alvo === 'nova'){
+      V1_novaOfertaImagemFile = compressed;
+      V1_novaOfertaImagemPreview = previewUrl;
+    } else {
+      V1_edicaoImagemFile = compressed;
+      V1_edicaoImagemPreview = previewUrl;
+    }
+    render();
+  }).catch(function(err){
+    if(errEl) errEl.textContent = err.message || 'Não foi possível preparar esta imagem.';
+  });
+}
+
+function imagemOfertaFormHtml(alvo, previewUrl){
+  const inputId = alvo === 'nova' ? 'novaOfertaImagemInput' : 'edicaoImagemInput';
+  const errId = alvo === 'nova' ? 'novaOfertaImagemErr' : 'edicaoImagemErr';
+  return `<label class="card-desc" style="display:block;margin-top:10px;margin-bottom:4px">Imagem do produto (opcional)</label>
+    <input type="file" accept="image/jpeg,image/png,image/webp" id="${inputId}" onchange="onImagemOfertaSelecionada(this,'${alvo}')">
+    <div class="auth-err" id="${errId}"></div>
+    ${previewUrl ? `<img src="${previewUrl}" alt="Pré-visualização" style="max-width:160px;max-height:160px;border-radius:8px;margin-top:8px;display:block;object-fit:cover">
+      <div class="card-desc" style="font-size:12px;margin-top:4px">Imagem comprimida e pronta — o envio real fica activo assim que o Storage for configurado.</div>` : ''}`;
+}
+
 function criarOferta(btnEl){
   const titulo = (document.getElementById('novaOfertaTitulo').value||'').trim();
   const descricao = (document.getElementById('novaOfertaDesc').value||'').trim();
@@ -1839,20 +2117,78 @@ function criarOferta(btnEl){
   if(!titulo){ errEl.textContent = 'Indica um título.'; return; }
   if(!preco || preco<=0){ errEl.textContent = 'Indica um preço válido (maior que 0).'; return; }
   const now = firebase.firestore.FieldValue.serverTimestamp();
+  const imagemFile = V1_novaOfertaImagemFile;
   runWithLocalLoader(btnEl, 'A guardar oferta…', function(){
+    /* Cria primeiro a oferta (sem imagemUrl) para obter o ID; o upload da
+       imagem, quando existir, só acontece depois — e só é gravado em
+       imagemUrl se o upload for bem sucedido. Sem imagem, o campo nunca
+       é incluído no documento. */
     return fdb.collection('ofertas').add({
       vendedorId: AUTH.uid, titulo, descricao, preco, moeda: 'AOA',
       estado: 'RASCUNHO', criadoEm: now, atualizadoEm: now
+    }).then(function(ref){
+      if(!imagemFile) return ref;
+      return uploadImagemOferta(ref.id, imagemFile)
+        .then(function(url){ return ref.update({ imagemUrl: url }); })
+        .catch(function(){ /* upload bloqueado/indisponível nesta fase: oferta fica criada sem imagem */ })
+        .then(function(){ return ref; });
     });
   }, { successText:'Oferta criada' })
-  .then(function(){ V1_novaOfertaOpen = false; v1Invalidate('minhasOfertas'); render(); })
+  .then(function(){
+    V1_novaOfertaOpen = false;
+    V1_novaOfertaImagemFile = null; V1_novaOfertaImagemPreview = null;
+    v1Invalidate('minhasOfertas'); render();
+  })
   .catch(function(){});
 }
+
+/* Abre/fecha o formulário de edição para uma oferta em RASCUNHO ou
+   REJEITADA. Antes desta função não havia forma de corrigir o
+   conteúdo — só de reenviar às cegas; agora o vendedor revê e edita
+   antes de (opcionalmente) submeter de novo. */
+function toggleEditarOferta(oid){
+  V1_ofertaEmEdicaoId = (V1_ofertaEmEdicaoId === oid) ? null : oid;
+  V1_novaOfertaOpen = false;
+  V1_edicaoImagemFile = null; V1_edicaoImagemPreview = null;
+  render();
+}
+
+function guardarEdicaoOferta(oid, btnEl){
+  const titulo = (document.getElementById('edicaoTitulo').value||'').trim();
+  const descricao = (document.getElementById('edicaoDesc').value||'').trim();
+  const preco = parseFloat(document.getElementById('edicaoPreco').value);
+  const errEl = document.getElementById('edicaoErr');
+  errEl.textContent = '';
+  if(!titulo){ errEl.textContent = 'Indica um título.'; return; }
+  if(!preco || preco<=0){ errEl.textContent = 'Indica um preço válido (maior que 0).'; return; }
+  const update = { titulo, descricao, preco, atualizadoEm: firebase.firestore.FieldValue.serverTimestamp() };
+  const imagemFile = V1_edicaoImagemFile;
+  runWithLocalLoader(btnEl, 'A guardar alterações…', function(){
+    /* Sem imagem nova, o campo imagemUrl não entra no update() — a
+       imagem existente (se houver) é preservada tal como está. Com
+       imagem nova, faz-se o upload (quando activado) e só depois se
+       inclui imagemUrl no mesmo update. */
+    if(!imagemFile){
+      return fdb.collection('ofertas').doc(oid).update(update);
+    }
+    return uploadImagemOferta(oid, imagemFile)
+      .then(function(url){ update.imagemUrl = url; })
+      .catch(function(){ /* upload bloqueado/indisponível nesta fase: restantes campos são guardados na mesma, imagem existente fica preservada */ })
+      .then(function(){ return fdb.collection('ofertas').doc(oid).update(update); });
+  }, { successText:'Alterações guardadas' })
+  .then(function(){
+    V1_ofertaEmEdicaoId = null;
+    V1_edicaoImagemFile = null; V1_edicaoImagemPreview = null;
+    v1Invalidate('minhasOfertas'); render();
+  })
+  .catch(function(){});
+}
+
 function submeterOfertaParaAprovacao(oid, btnEl){
   runWithLocalLoader(btnEl, 'A submeter…', function(){
     return fdb.collection('ofertas').doc(oid).update({ estado:'AGUARDA_APROVACAO', atualizadoEm: firebase.firestore.FieldValue.serverTimestamp() });
   }, { successText:'Submetida para aprovação' })
-  .then(function(){ v1Invalidate('minhasOfertas'); render(); })
+  .then(function(){ V1_ofertaEmEdicaoId = null; v1Invalidate('minhasOfertas'); render(); })
   .catch(function(){});
 }
 RENDERERS['comercio:ofertas'] = function(){
@@ -1878,44 +2214,248 @@ RENDERERS['comercio:ofertas'] = function(){
     <input class="auth-input" id="novaOfertaTitulo" placeholder="Título do produto digital">
     <textarea class="auth-input" id="novaOfertaDesc" placeholder="Descrição" rows="3"></textarea>
     <input class="auth-input" id="novaOfertaPreco" type="number" min="1" placeholder="Preço em Kz">
+    ${imagemOfertaFormHtml('nova', V1_novaOfertaImagemPreview)}
     <div class="auth-err" id="novaOfertaErr"></div>
-    <button class="btn bv bsm" onclick="criarOferta(this)">Guardar rascunho</button>
+    <button class="btn bv bsm" style="margin-top:10px" onclick="criarOferta(this)">Guardar rascunho</button>
   </div>` : ''}
   ${!ofertas.length ? emptyState('📦','Ainda não tens ofertas','Cria a tua primeira oferta acima.') : `
   <div class="grid">
     ${ofertas.map(function(o){
+      const emEdicao = V1_ofertaEmEdicaoId === o.id;
+      const podeEditar = (o.estado==='RASCUNHO' || o.estado==='REJEITADA');
       return `<div class="card">
+        ${o.imagemUrl ? `<img src="${escHtml(o.imagemUrl)}" alt="${escHtml(o.titulo)}" style="width:100%;max-height:140px;object-fit:cover;border-radius:8px;margin-bottom:10px">` : ''}
         <div class="card-tit">${escHtml(o.titulo)}</div>
         <div class="card-desc">${escHtml(o.descricao||'')}</div>
         <div class="card-foot"><span>${fmt(o.preco)} Kz</span><span class="pill ${estadoPill[o.estado]||'pill-n'}">${estadoLabel[o.estado]||o.estado}</span></div>
-        ${(o.estado==='RASCUNHO'||o.estado==='REJEITADA') ? `<button class="btn bo bsm" style="margin-top:10px;width:100%" onclick="submeterOfertaParaAprovacao('${o.id}', this)">Submeter para aprovação</button>` : ''}
+        ${o.estado==='REJEITADA' ? `<div class="card-desc" style="color:var(--red);margin-top:6px">Esta oferta foi rejeitada. Revê o conteúdo antes de submeter de novo.</div>` : ''}
+        ${podeEditar ? `<div style="display:flex;gap:8px;margin-top:10px">
+          <button class="btn bo bsm" style="flex:1" onclick="toggleEditarOferta('${o.id}')">${emEdicao ? 'Fechar edição' : 'Editar'}</button>
+          <button class="btn bv bsm" style="flex:1" onclick="submeterOfertaParaAprovacao('${o.id}', this)">Submeter para aprovação</button>
+        </div>` : ''}
+        ${emEdicao ? `<div class="card" style="margin-top:12px;background:var(--card2)">
+          <input class="auth-input" id="edicaoTitulo" value="${escHtml(o.titulo)}" placeholder="Título do produto digital">
+          <textarea class="auth-input" id="edicaoDesc" placeholder="Descrição" rows="3">${escHtml(o.descricao||'')}</textarea>
+          <input class="auth-input" id="edicaoPreco" type="number" min="1" value="${o.preco}" placeholder="Preço em Kz">
+          ${imagemOfertaFormHtml('edicao', V1_edicaoImagemPreview)}
+          <div class="auth-err" id="edicaoErr"></div>
+          <button class="btn bv bsm" style="margin-top:10px" onclick="guardarEdicaoOferta('${o.id}', this)">Guardar alterações</button>
+        </div>` : ''}
       </div>`;
     }).join('')}
   </div>`}`;
 };
 
-/* ══════ COMPRA (checkout directo, sem carrinho — simplicidade V1) ══════ */
-function comprarOferta(ofertaId, btnEl){
+/* ══════ CHECKOUT (oferta PUBLICADA → pedido) ══════
+   Modal de confirmação antes de criar o pedido. O resumo mostrado é
+   só visual, a partir da mesma cache que o Marketplace já usa
+   (V1.cache['ofertasPublicadas'] / 'ofertaDetalhe:'+id) — nunca é a
+   fonte da verdade. A escrita real (confirmarCheckout) relê a oferta
+   no servidor dentro de uma transacção, exactamente como o antigo
+   comprarOferta() já fazia; o comprador nunca define preço,
+   vendedorId, comissão ou estado — tudo isso vem sempre do servidor
+   ou de AUTH.uid, nunca de um campo do formulário. */
+let V1_checkoutOfertaId = null;
+let V1_checkoutOfertaAvulsa = null; // fallback de leitura pontual, se a oferta não estiver em cache
+let V1_checkoutStep = 'resumo';     // 'resumo' | 'sucesso'
+let V1_checkoutPedidoId = null;
+
+function checkoutOfertaData(){
+  const id = V1_checkoutOfertaId;
+  if(!id) return null;
+  const doGrid = (V1.cache['ofertasPublicadas']||[]).find(function(o){ return o.id===id; });
+  if(doGrid) return doGrid;
+  const doDetalhe = V1.cache['ofertaDetalhe:'+id];
+  if(doDetalhe && doDetalhe[0]) return doDetalhe[0];
+  return V1_checkoutOfertaAvulsa;
+}
+
+function abrirCheckout(ofertaId){
+  if(!AUTH.uid){ openAuth(); return; }
+  V1_checkoutOfertaId = ofertaId;
+  V1_checkoutOfertaAvulsa = null;
+  V1_checkoutStep = 'resumo';
+  V1_checkoutPedidoId = null;
+  document.getElementById('checkoutOverlay').classList.add('open');
+  renderCheckoutBody();
+  if(!checkoutOfertaData()){
+    // Não estava em nenhuma cache já carregada (ex.: acesso directo) —
+    // leitura pontual só para o resumo visual; não entra em V1.cache.
+    fdb.collection('ofertas').doc(ofertaId).get().then(function(snap){
+      if(V1_checkoutOfertaId !== ofertaId) return; // o modal já mudou entretanto
+      if(snap.exists && snap.data().estado==='PUBLICADA'){
+        V1_checkoutOfertaAvulsa = Object.assign({id: snap.id}, snap.data());
+      }
+      renderCheckoutBody();
+    }).catch(function(){ renderCheckoutBody(); });
+  }
+}
+
+function closeCheckout(){
+  document.getElementById('checkoutOverlay').classList.remove('open');
+  V1_checkoutOfertaId = null;
+  V1_checkoutOfertaAvulsa = null;
+}
+
+function renderCheckoutBody(){
+  const body = document.getElementById('checkoutBody');
+  if(!body) return;
+  if(V1_checkoutStep === 'sucesso'){
+    body.innerHTML = `
+      <div class="card-tit" style="font-size:16px;margin-bottom:8px">Pedido criado — aguarde o pagamento.</div>
+      <div class="card-desc" style="margin-bottom:4px">Identificador do pedido</div>
+      <div class="card-desc" style="font-family:monospace;font-size:12px;color:var(--vlt);margin-bottom:16px">${escHtml(V1_checkoutPedidoId||'')}</div>
+      <div class="card-desc" style="margin-bottom:16px">O pagamento é processado manualmente nesta fase. Acompanha o estado do teu pedido em "Os meus pedidos".</div>
+      <button class="btn bv" style="width:100%;margin-bottom:8px" onclick="closeCheckout(); go('comercio','pedidos');">Ver os meus pedidos</button>
+      <button class="btn bo" style="width:100%" onclick="closeCheckout()">Fechar</button>`;
+    return;
+  }
+  const o = checkoutOfertaData();
+  if(!o){
+    body.innerHTML = `<div class="card-desc">A carregar oferta…</div>`;
+    return;
+  }
+  body.innerHTML = `
+    ${o.imagemUrl ? `<img src="${escHtml(o.imagemUrl)}" alt="${escHtml(o.titulo)}" style="width:100%;max-height:200px;object-fit:cover;border-radius:10px;margin-bottom:14px">` : ''}
+    <div class="card-tit" style="font-size:16px;margin-bottom:6px">${escHtml(o.titulo)}</div>
+    <div class="card-desc" style="margin-bottom:14px;white-space:pre-wrap">${escHtml(o.descricao||'')}</div>
+    <div class="card-foot" style="margin-bottom:16px"><span style="font-size:17px;font-weight:700">${fmt(o.preco)} ${escHtml(o.moeda||'AOA')}</span></div>
+    <div class="card-desc" style="margin-bottom:4px">Comprador</div>
+    <div class="card-desc" style="color:#fff;margin-bottom:16px">${escHtml((AUTH.userDoc && AUTH.userDoc.email) || AUTH.email || '')}</div>
+    <button class="btn bv" style="width:100%" onclick="confirmarCheckout(this)">Confirmar Pedido</button>`;
+}
+
+/* Cria o pedido — mesma transacção que já existia em comprarOferta():
+   relê a oferta no servidor (nunca confia no resumo mostrado no ecrã),
+   confirma que continua PUBLICADA, e só então grava o pedido com
+   estado inicial 'CRIADO'. Mantém a convenção de estados já usada em
+   todo o módulo (CRIADO → AGUARDA_PAGAMENTO, definido pelo Admin ao
+   anexar a cobrança → PAGO → ENTREGUE) em vez de introduzir campos
+   paralelos como status/paymentStatus. */
+function confirmarCheckout(btnEl){
+  const ofertaId = V1_checkoutOfertaId;
+  if(!ofertaId){ return; }
   if(!AUTH.uid){ openAuth(); return; }
   const ofertaRef = fdb.collection('ofertas').doc(ofertaId);
   const pedidoRef = fdb.collection('pedidos').doc();
+  // Afiliado: lido de sessionStorage (capturado do ?ref= no arranque da
+  // app — ver bloco de captura de referral perto do fim do ficheiro).
+  // Bloqueia autoindicação nos dois sentidos possíveis: o próprio
+  // comprador a "indicar-se" a si mesmo, ou o vendedor a indicar-se a
+  // si próprio na sua oferta. Não conseguimos validar aqui se o
+  // programa desse afiliado está mesmo activo (Rules: affiliateProfiles
+  // só é legível pelo dono ou por Admin) — essa validação real acontece
+  // do lado do Admin, em adminMarcarPago, no momento da aprovação.
+  const refBruto = (sessionStorage.getItem('ipd_ref') || '').trim();
   runWithLocalLoader(btnEl, 'A criar pedido…', function(){
     return fdb.runTransaction(function(tx){
       return tx.get(ofertaRef).then(function(oSnap){
         if(!oSnap.exists) throw new Error('Esta oferta já não existe.');
         const o = oSnap.data();
         if(o.estado!=='PUBLICADA') throw new Error('Esta oferta já não está disponível.');
+        const afiliadoId = (refBruto && refBruto !== AUTH.uid && refBruto !== o.vendedorId) ? refBruto : null;
         const now = firebase.firestore.FieldValue.serverTimestamp();
         tx.set(pedidoRef, {
           compradorId: AUTH.uid, vendedorId: o.vendedorId, ofertaId: ofertaId,
           tituloSnapshot: o.titulo, valor: o.preco, moeda: o.moeda||'AOA',
           estado: 'CRIADO', pagamento: null, linkEntregue: null,
+          afiliadoId: afiliadoId,
           criadoEm: now, atualizadoEm: now
         });
       });
     });
   }, { successText:'Pedido criado' })
-  .then(function(){ v1Invalidate('meusPedidos'); go('comercio','pedidos'); })
+  .then(function(){
+    V1_checkoutPedidoId = pedidoRef.id;
+    V1_checkoutStep = 'sucesso';
+    v1Invalidate('meusPedidos');
+    renderCheckoutBody();
+  })
+  .catch(function(){});
+}
+
+/* ══════ PAGAMENTO MANUAL + COMPROVATIVO (comprador) ══════
+   Continua a usar a mesma colecção "pedidos" e o mesmo campo "estado"
+   já existentes — não é um segundo sistema de pedidos. Só acrescenta
+   um novo valor de estado (PAGAMENTO_ENVIADO) ao fluxo que já havia,
+   e reutiliza adminMarcarPago()/adminMarcarFalhou() já existentes
+   para a decisão final do Admin (ver mais abaixo). Instruções são
+   texto estático da plataforma — não há ainda um ecrã de config para
+   o Admin as editar; ficaria para um módulo futuro.
+
+   O comprovativo é IDENTIFICADO POR DADOS TEXTUAIS, não por upload de
+   ficheiro — o Firebase Storage continua desactivado nesta fase
+   (STORAGE_UPLOAD_ENABLED = false) e não devemos prometer ao
+   comprador um upload que não funciona de facto. */
+const PAGAMENTO_MANUAL_INSTRUCOES = `Transferência bancária / referência multicaixa:
+IBAN: AO06 0000 0000 0000 0000 0 (exemplo — actualizar com o IBAN real da IP Digital AO)
+Titular: IP Digital AO
+Depois de pagares, preenche os dados abaixo (nome do titular e referência da transferência/pagamento são obrigatórios) para o Admin confirmar.`;
+
+let V1_pedidoPagamentoAbertoId = null; // id do pedido com o painel de pagamento aberto
+
+function togglePainelPagamento(pid){
+  V1_pedidoPagamentoAbertoId = (V1_pedidoPagamentoAbertoId===pid) ? null : pid;
+  render();
+}
+
+/* CRIADO → AGUARDA_PAGAMENTO: acção do próprio comprador, só muda o
+   estado (nunca valor/vendedorId/comissão) e só quando o pedido ainda
+   está mesmo em CRIADO — evita saltar etapas por duplo clique. */
+function avancarParaPagamento(pid, btnEl){
+  const pedidoRef = fdb.collection('pedidos').doc(pid);
+  runWithLocalLoader(btnEl, 'A preparar pagamento…', function(){
+    return pedidoRef.get().then(function(snap){
+      if(!snap.exists) throw new Error('Este pedido já não existe.');
+      if(snap.data().estado !== 'CRIADO') throw new Error('Este pedido já não está no estado inicial.');
+      return pedidoRef.update({ estado:'AGUARDA_PAGAMENTO', atualizadoEm: firebase.firestore.FieldValue.serverTimestamp() });
+    });
+  }, { successText:'Pronto para pagamento' })
+  .then(function(){ V1_pedidoPagamentoAbertoId = pid; v1Invalidate('meusPedidos'); render(); })
+  .catch(function(){});
+}
+
+/* (CRIADO ou AGUARDA_PAGAMENTO) → PAGAMENTO_ENVIADO. O comprador
+   NUNCA marca o próprio pedido como PAGO — só regista os dados do
+   pagamento que fez; a decisão fica sempre com o Admin
+   (adminMarcarPago/adminMarcarFalhou, mais abaixo, ambas inalteradas
+   por esta correcção). Sem upload de ficheiro nesta versão — o
+   "comprovativo" é o próprio conjunto de dados textuais. */
+function enviarComprovativo(pid, btnEl){
+  const errEl = document.getElementById('comprovativoErr');
+  if(errEl) errEl.textContent = '';
+  const nomeTitular = (document.getElementById('comprovativoNome').value || '').trim();
+  const referencia = (document.getElementById('comprovativoReferencia').value || '').trim();
+  const contaPagamento = (document.getElementById('comprovativoConta').value || '').trim();
+  const observacao = (document.getElementById('comprovativoObs').value || '').trim();
+  if(!nomeTitular || !referencia){
+    if(errEl) errEl.textContent = 'Preenche pelo menos o nome do titular e a referência do pagamento.';
+    return;
+  }
+  const pedidoRef = fdb.collection('pedidos').doc(pid);
+  runWithLocalLoader(btnEl, 'A enviar comprovativo…', function(){
+    return pedidoRef.get().then(function(snap){
+      if(!snap.exists) throw new Error('Este pedido já não existe.');
+      const p = snap.data();
+      // Confirma que o comprador autenticado é mesmo o dono do pedido —
+      // feito aqui mesmo sem alterar as Firestore rules nesta etapa
+      // (elas continuam a ser a barreira real do servidor).
+      if(p.compradorId !== AUTH.uid) throw new Error('Este pedido não pertence à tua conta.');
+      // Só avança a partir de CRIADO ou AGUARDA_PAGAMENTO — qualquer
+      // outro estado (já enviado, pago, entregue, falhou, cancelado) é
+      // recusado, o que impede reenvio/duplo processamento.
+      if(p.estado !== 'CRIADO' && p.estado !== 'AGUARDA_PAGAMENTO') throw new Error('Este pedido já não está disponível para enviar comprovativo (estado actual: ' + p.estado + ').');
+      const now = firebase.firestore.FieldValue.serverTimestamp();
+      const comprovativo = { nomeTitular:nomeTitular, referencia:referencia, contaPagamento:contaPagamento, observacao:observacao, enviadoEm: now };
+      // Nunca toca em valor/vendedorId/comissão/saldo — só o estado e o
+      // próprio objecto comprovativo.
+      return pedidoRef.update({ estado:'PAGAMENTO_ENVIADO', comprovativo: comprovativo, atualizadoEm: now });
+    });
+  }, { successText:'Comprovativo enviado' })
+  .then(function(){
+    V1_pedidoPagamentoAbertoId = null;
+    v1Invalidate('meusPedidos'); render();
+  })
   .catch(function(){});
 }
 
@@ -1928,15 +2468,49 @@ RENDERERS['comercio:pedidos'] = function(){
     return skeletonGrid();
   }
   const pedidos = V1.cache[key];
-  const estadoLabel = {CRIADO:'Criado — aguarda cobrança', AGUARDA_PAGAMENTO:'Aguarda pagamento', PAGO:'Pago', ENTREGUE:'Entregue', FALHOU:'Falhou', CANCELADO:'Cancelado'};
+  const estadoLabel = {CRIADO:'Criado', AGUARDA_PAGAMENTO:'Aguarda pagamento', PAGAMENTO_ENVIADO:'Comprovativo enviado — aguarda Admin', PAGO:'Pago', ENTREGUE:'Entregue', FALHOU:'Falhou', CANCELADO:'Cancelado'};
   if(!pedidos.length) return emptyState('🧾','Ainda não tens pedidos','Compra um produto em Marketplace → Digital.');
-  return `<div class="table-wrap"><table><thead><tr><th>Produto</th><th>Valor</th><th>Estado</th><th>Entrega</th></tr></thead><tbody>
+  return `<div class="table-wrap"><table><thead><tr><th>Produto</th><th>Valor</th><th>Data</th><th>Estado</th><th>Entrega</th><th>Acção</th></tr></thead><tbody>
   ${pedidos.map(function(p){
     const okState = p.estado==='ENTREGUE'||p.estado==='PAGO';
     const badState = p.estado==='FALHOU'||p.estado==='CANCELADO';
-    return `<tr><td>${escHtml(p.tituloSnapshot)}</td><td>${fmt(p.valor)} ${escHtml(p.moeda)}</td>
+    const painelAberto = V1_pedidoPagamentoAbertoId === p.id;
+    let acao = '—';
+    if(p.estado==='CRIADO') acao = `<button class="btn bv bsm" onclick="avancarParaPagamento('${p.id}', this)">Pagar agora</button>`;
+    else if(p.estado==='AGUARDA_PAGAMENTO') acao = `<button class="btn bo bsm" onclick="togglePainelPagamento('${p.id}')">${painelAberto?'Fechar':'Ver instruções de pagamento'}</button>`;
+    else if(p.estado==='PAGAMENTO_ENVIADO') acao = `<span class="card-desc" style="font-size:12px">Pagamento em análise</span>`;
+    else if(p.estado==='PAGO') acao = `<span class="card-desc" style="font-size:12px">Pagamento confirmado</span>`;
+    else if(p.estado==='ENTREGUE') acao = `<span class="card-desc" style="font-size:12px">Produto entregue</span>`;
+    // Entrega só fica disponível quando ENTREGUE + linkEntregue (definidos
+    // sempre em conjunto por adminEntregarPedido — nunca pelo comprador).
+    // Em PAGO sem link ainda, mostra estado de espera em vez de link vazio.
+    let entregaCell = '—';
+    if(p.estado==='ENTREGUE' && p.linkEntregue){
+      entregaCell = `<a href="${escHtml(p.linkEntregue)}" target="_blank" rel="noopener" class="btn bv bsm">Aceder ao produto</a>`;
+    } else if(p.estado==='PAGO'){
+      entregaCell = `<span class="card-desc" style="font-size:12px">Aguarda liberação da entrega pelo Admin</span>`;
+    }
+    const linhaPrincipal = `<tr><td>${escHtml(p.tituloSnapshot)}</td><td>${fmt(p.valor)} ${escHtml(p.moeda)}</td>
+      <td>${fmtData(p.criadoEm)}</td>
       <td><span class="pill ${okState?'pill-g':badState?'pill-r':'pill-v'}">${estadoLabel[p.estado]||p.estado}</span></td>
-      <td>${(p.estado==='ENTREGUE' && p.linkEntregue) ? `<a href="${escHtml(p.linkEntregue)}" target="_blank" rel="noopener" style="color:var(--vlt)">Descarregar</a>` : '—'}</td></tr>`;
+      <td>${entregaCell}</td>
+      <td>${acao}</td></tr>`;
+    const painel = (painelAberto && (p.estado==='AGUARDA_PAGAMENTO' || p.estado==='CRIADO')) ? `<tr><td colspan="6">
+      <div class="card" style="max-width:420px">
+        <div class="card-desc" style="white-space:pre-wrap;margin-bottom:14px">${escHtml(PAGAMENTO_MANUAL_INSTRUCOES)}</div>
+        <label class="card-desc" style="display:block;margin-bottom:4px">Nome do titular do pagamento *</label>
+        <input type="text" id="comprovativoNome" placeholder="Ex: Isaac Pedro Muondo Filipe" style="width:100%;padding:9px;border-radius:8px;border:1px solid var(--g1);margin-bottom:10px;box-sizing:border-box">
+        <label class="card-desc" style="display:block;margin-bottom:4px">Referência/ID do pagamento *</label>
+        <input type="text" id="comprovativoReferencia" placeholder="Ex: referência multicaixa ou nº da transferência" style="width:100%;padding:9px;border-radius:8px;border:1px solid var(--g1);margin-bottom:10px;box-sizing:border-box">
+        <label class="card-desc" style="display:block;margin-bottom:4px">Número/conta/carteira usada (opcional)</label>
+        <input type="text" id="comprovativoConta" placeholder="Ex: conta/número de onde saiu o pagamento" style="width:100%;padding:9px;border-radius:8px;border:1px solid var(--g1);margin-bottom:10px;box-sizing:border-box">
+        <label class="card-desc" style="display:block;margin-bottom:4px">Observação (opcional)</label>
+        <textarea id="comprovativoObs" rows="2" style="width:100%;padding:9px;border-radius:8px;border:1px solid var(--g1);margin-bottom:10px;box-sizing:border-box;resize:vertical"></textarea>
+        <div class="auth-err" id="comprovativoErr"></div>
+        <button class="btn bv bsm" style="margin-top:4px" onclick="enviarComprovativo('${p.id}', this)">Enviar comprovativo</button>
+      </div>
+    </td></tr>` : '';
+    return linhaPrincipal + painel;
   }).join('')}
   </tbody></table></div>`;
 };
@@ -1958,7 +2532,509 @@ RENDERERS['financeiro:vendas'] = function(){
   <div class="table-wrap"><table><thead><tr><th>Valor da venda</th><th>Comissão IP</th><th>Devido a ti</th><th>Estado</th></tr></thead><tbody>
   ${regs.map(function(r){ return `<tr><td>${fmt(r.valorVenda)} ${escHtml(r.moeda)}</td><td>${fmt(comissao(r))} ${escHtml(r.moeda)}</td><td>${fmt(devido(r))} ${escHtml(r.moeda)}</td><td><span class="pill ${r.estado==='LIQUIDADO'?'pill-g':'pill-v'}">${r.estado}</span></td></tr>`; }).join('')}
   </tbody></table></div>
-  ${v1Note('registo de consulta apenas — sem saque nem transferência self-service. Liquidação é feita fora da app pelo Admin nesta fase.')}`;
+  ${v1Note('liquidação (marcar como pago de facto) continua manual, feita pelo Admin em Administração → Financeiro. O pedido de saque em Financeiro → Saques só regista a tua solicitação; não move dinheiro sozinho.')}`;
+};
+
+/* ══════ AFILIADOS — programa do vendedor + geração de link ══════
+   Reutiliza a colecção affiliateProfiles/{uid} já desbloqueada nas
+   Rules (dono lê/escreve o próprio documento, Admin tudo). O "link de
+   afiliado" é só uma URL desta própria app com ?ref={uid}&oferta={id}
+   — nada de infra nova, nada de affiliateAttributions escrito pelo
+   cliente (essa colecção é Admin-only, ver adminMarcarPago mais
+   abaixo). CONFLITO CONHECIDO, não contornado: esta página NÃO
+   consegue confirmar se o programa de OUTRO vendedor está activo nem
+   mostrar a percentagem real antes de gerar o link, porque a Rule de
+   affiliateProfiles só permite leitura ao dono ou a Admin — um
+   afiliado não pode ler o perfil de outra pessoa. A validação real
+   (activo + percentagem) só acontece do lado do Admin, no momento em
+   que o pagamento é aprovado. */
+function afiliadoLinkParaOferta(ofertaId){
+  const url = new URL(location.href);
+  url.search = '';
+  url.searchParams.set('ref', AUTH.uid);
+  url.searchParams.set('oferta', ofertaId);
+  return url.toString();
+}
+function copiarLinkAfiliado(url, btnEl){
+  const original = btnEl.textContent;
+  (navigator.clipboard ? navigator.clipboard.writeText(url) : Promise.reject())
+    .then(function(){ btnEl.textContent = 'Copiado!'; setTimeout(function(){ btnEl.textContent = original; }, 1500); })
+    .catch(function(){ btnEl.textContent = 'Não foi possível copiar'; setTimeout(function(){ btnEl.textContent = original; }, 1500); });
+}
+function guardarProgramaAfiliados(btnEl){
+  const activo = document.getElementById('afilActivo').checked;
+  const percentagem = parseFloat(document.getElementById('afilPercentagem').value);
+  const errEl = document.getElementById('afilErr');
+  errEl.textContent = '';
+  if(activo && (!percentagem || percentagem<=0 || percentagem>100)){
+    errEl.textContent = 'Indica uma percentagem entre 1 e 100 para activar o programa.';
+    return;
+  }
+  runWithLocalLoader(btnEl, 'A guardar…', function(){
+    return fdb.collection('affiliateProfiles').doc(AUTH.uid).set({
+      activo: activo, percentagem: activo ? percentagem : (percentagem||0),
+      atualizadoEm: firebase.firestore.FieldValue.serverTimestamp()
+    }, { merge:true });
+  }, { successText:'Programa actualizado' })
+  .then(function(){ v1Invalidate('meuAfiliadoPerfil'); render(); })
+  .catch(function(){});
+}
+
+/* ══════ AFILIADOS › O meu programa (vendedor) ══════ */
+RENDERERS['afiliados:comissoes'] = function(){
+  if(!AUTH.uid) return loginGate('Entra para configurares o teu programa de afiliados.');
+  const key = 'meuAfiliadoPerfil';
+  if(V1.cache[key]===undefined){
+    v1Fetch(key, function(){
+      return fdb.collection('affiliateProfiles').doc(AUTH.uid).get().then(function(snap){
+        return { docs: snap.exists ? [{id:snap.id, data:function(){ return snap.data(); }}] : [] };
+      });
+    });
+    return skeletonGrid();
+  }
+  if(!isSellerApproved()){
+    return `<div class="gate-card"><div class="gi">${icon('network')}</div>
+      <div class="card-tit" style="font-size:15px;margin-bottom:8px">Precisas de ser Vendedor aprovado</div>
+      <div class="card-desc">O programa de afiliados é configurado por vendedores para as suas próprias ofertas.</div></div>`;
+  }
+  const perfil = V1.cache[key][0] || { activo:false, percentagem:0 };
+  return `<p class="page-sub">Activa um programa de afiliados para as tuas ofertas e define a percentagem de comissão paga a quem trouxer vendas.</p>
+  <div class="card" style="max-width:380px">
+    <label class="card-desc" style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+      <input type="checkbox" id="afilActivo" ${perfil.activo?'checked':''}> Programa de afiliados activo
+    </label>
+    <input class="auth-input" id="afilPercentagem" type="number" min="1" max="100" placeholder="% de comissão para o afiliado" value="${perfil.percentagem||''}">
+    <div class="auth-err" id="afilErr"></div>
+    <button class="btn bv bsm" style="margin-top:10px" onclick="guardarProgramaAfiliados(this)">Guardar</button>
+  </div>
+  ${v1Note('a validação de que uma compra referida corresponde a um programa realmente activo acontece do lado do Admin, na aprovação do pagamento — outro utilizador não consegue ler este teu perfil directamente (Rules: só tu ou Admin).')}`;
+};
+
+/* ══════ AFILIADOS › Gerar link (qualquer utilizador autenticado) ══════ */
+RENDERERS['afiliados:links'] = function(){
+  if(!AUTH.uid) return loginGate('Entra para gerares os teus links de afiliado.');
+  const key = 'ofertasPublicadas';
+  if(V1.cache[key]===undefined){
+    v1Fetch(key, function(){ return fdb.collection('ofertas').where('estado','==','PUBLICADA').orderBy('criadoEm','desc').limit(60).get(); });
+    return skeletonGrid();
+  }
+  const ofertas = V1.cache[key];
+  if(!ofertas.length) return emptyState('🔗','Ainda não há ofertas publicadas','Volta quando houver produtos no Marketplace.');
+  return `<p class="page-sub">Gera um link de afiliado para qualquer oferta publicada. Não conseguimos confirmar aqui se o vendedor tem mesmo um programa activo — isso é validado pelo Admin no momento da venda.</p>
+  <div class="table-wrap"><table><thead><tr><th>Oferta</th><th>Link</th><th></th></tr></thead><tbody>
+  ${ofertas.map(function(o){
+    const link = afiliadoLinkParaOferta(o.id);
+    return `<tr><td>${escHtml(o.titulo)}</td><td style="font-family:monospace;font-size:11px;color:var(--g3lt);word-break:break-all">${escHtml(link)}</td><td><button class="btn bo bsm" onclick="copiarLinkAfiliado('${link.replace(/'/g,"\\'")}', this)">Copiar</button></td></tr>`;
+  }).join('')}
+  </tbody></table></div>`;
+};
+RENDERERS['afiliados:marketplace'] = RENDERERS['afiliados:links']; // mesma função reaproveitada — não é lógica duplicada
+
+/* ══════ AFILIADOS › Tracking — vendas/comissão reais, cliques honestos ══════
+   affiliateAttributions continua Admin-only (correcto, tem dados de
+   outras pessoas). O que mudou: affiliateStats/{uid} é um rollup que
+   SÓ existe com dados reais, escrito exclusivamente dentro da
+   transacção de adminMarcarPago() (ver comentário lá) — nunca pelo
+   cliente. Rule necessária (ainda por publicar, ver ficheiro de
+   Rules): leitura restrita ao próprio uid ou Admin, escrita bloqueada
+   para qualquer client. Cliques: NÃO existe nenhum mecanismo de
+   tracking implementado nesta app — nenhuma collection, nenhum
+   evento, nada. Mostrar "0" seria mentir (0 sugere que medimos e não
+   houve nenhum); por isso mostramos texto explícito em vez de número. */
+RENDERERS['afiliados:tracking'] = function(){
+  if(!AUTH.uid) return loginGate('Entra para veres o teu desempenho como afiliado.');
+  const key = 'meuAfiliadoStats';
+  if(V1.cache[key]===undefined){
+    v1Fetch(key, function(){
+      return fdb.collection('affiliateStats').doc(AUTH.uid).get().then(function(snap){
+        return { docs: snap.exists ? [{id:snap.id, data:function(){ return snap.data(); }}] : [] };
+      });
+    });
+    return skeletonGrid();
+  }
+  const stats = V1.cache[key][0] || { vendasCount:0, comissaoTotalDevida:0, comissaoTotalPaga:0 };
+  return `<p class="page-sub">Desempenho real como afiliado, calculado exclusivamente a partir de vendas confirmadas pelo Admin (nunca por ti nem pelo comprador).</p>
+  <div class="stat-row">
+    <div class="stat-card"><div class="stat-lbl">Vendas atribuídas</div><div class="stat-val">${fmt(stats.vendasCount||0)}</div></div>
+    <div class="stat-card"><div class="stat-lbl">Comissão devida</div><div class="stat-val">${fmt(stats.comissaoTotalDevida||0)} <small>Kz</small></div></div>
+    <div class="stat-card"><div class="stat-lbl">Comissão já paga</div><div class="stat-val">${fmt(stats.comissaoTotalPaga||0)} <small>Kz</small></div></div>
+    <div class="stat-card"><div class="stat-lbl">Cliques</div><div class="stat-val" style="font-size:13px;color:var(--g3lt);font-weight:600">Sem tracking implementado</div></div>
+  </div>
+  ${v1Note('cliques exigiriam um sistema de tracking novo (evento + collection + atribuição por click-id) — não construído nesta tarefa, por decisão explícita. Não inventamos "0" para não sugerir que medimos algo que não medimos.')}`;
+};
+
+/* ══════ FINANCEIRO › SAQUES (vendedor) ══════
+   ATENÇÃO — mudança de arquitectura (aprovada): a criação do
+   "withdrawal" deixou de ser um write directo do cliente. Passa a ser
+   feita EXCLUSIVAMENTE pela Cloud Function callable
+   "solicitarSaqueSeguro" (ver functions/index.js — ficheiro entregue à
+   parte, NÃO incluído neste HTML porque o projecto de Functions não
+   está neste repositório). A Rule de "withdrawals" (ver proposta em
+   REGRAS_PROPOSTAS_REVISAO_NECESSARIA.md) passa a bloquear
+   "allow create" para qualquer client — só a Function, que corre com
+   Admin SDK e ignora Rules, consegue criar o documento.
+   saldoDisponivelParaSaque() e o valor mostrado no card ABAIXO
+   continuam a existir só como UX (mostrar ao vendedor quanto pode
+   provavelmente sacar) — deixaram de ser usados para bloquear o envio
+   do pedido. Quem decide o saldo real, sempre, é a Function. */
+function saldoDisponivelParaSaque(){
+  const regs = V1.cache['meusRegistosFinanceiros'] || [];
+  const devido = function(r){ return r.valorDevidoVendedor!==undefined ? r.valorDevidoVendedor : r.valorVenda; };
+  const totalDevido = regs.reduce(function(s,r){ return s + (r.estado==='DEVIDO' ? devido(r) : 0); }, 0);
+  const saques = V1.cache['meusSaques'] || [];
+  const totalPendente = saques.reduce(function(s,w){ return s + ((w.estado==='SOLICITADO'||w.estado==='EM_PROCESSAMENTO') ? w.valor : 0); }, 0);
+  return Math.max(0, Math.round((totalDevido - totalPendente) * 100) / 100);
+}
+function solicitarSaque(btnEl){
+  const valor = parseFloat(document.getElementById('saqueValor').value);
+  const metodo = (document.getElementById('saqueMetodo').value || '').trim();
+  const dadosRecebimento = (document.getElementById('saqueDados').value || '').trim();
+  const errEl = document.getElementById('saqueErr');
+  errEl.textContent = '';
+  // Só validações de formulário (campos vazios) — NUNCA saldo. O saldo
+  // é recalculado do zero, a partir de registosFinanceiros reais,
+  // dentro da própria Cloud Function. Se este pedido não couber no
+  // saldo real, a Function rejeita e o erro aparece aqui por causa do
+  // .catch() do runWithLocalLoader (friendlyErrorMessage mostra
+  // err.message tal como a Function o define).
+  if(!valor || valor<=0){ errEl.textContent = 'Indica um valor válido.'; return; }
+  if(!metodo){ errEl.textContent = 'Indica o método de recebimento.'; return; }
+  if(!dadosRecebimento){ errEl.textContent = 'Indica os dados para recebimento (conta/IBAN/carteira).'; return; }
+  runWithLocalLoader(btnEl, 'A solicitar saque…', function(){
+    return fbFunctions.httpsCallable('solicitarSaqueSeguro')({ valor: valor, metodo: metodo, dadosRecebimento: dadosRecebimento });
+  }, { successText:'Saque solicitado' })
+  .then(function(){
+    document.getElementById('saqueValor').value=''; document.getElementById('saqueDados').value='';
+    v1Invalidate('meusSaques'); render();
+  })
+  .catch(function(){});
+}
+RENDERERS['financeiro:saques'] = function(){
+  if(!AUTH.uid) return loginGate('Entra para solicitares um saque.');
+  const keyRegs = 'meusRegistosFinanceiros', keySaques = 'meusSaques';
+  if(V1.cache[keyRegs]===undefined) v1Fetch(keyRegs, function(){ return fdb.collection('registosFinanceiros').where('vendedorId','==',AUTH.uid).orderBy('criadoEm','desc').get(); });
+  if(V1.cache[keySaques]===undefined) v1Fetch(keySaques, function(){ return fdb.collection('withdrawals').where('vendedorId','==',AUTH.uid).orderBy('criadoEm','desc').get(); });
+  if(V1.cache[keyRegs]===undefined || V1.cache[keySaques]===undefined) return skeletonGrid();
+  const saldo = saldoDisponivelParaSaque();
+  const saques = V1.cache[keySaques];
+  const estadoLabel = {SOLICITADO:'Solicitado', EM_PROCESSAMENTO:'Em processamento', PAGO:'Pago', REJEITADO:'Rejeitado'};
+  return `<div class="stat-row"><div class="stat-card"><div class="stat-lbl">Saldo disponível para saque</div><div class="stat-val">${fmt(saldo)} <small>Kz</small></div></div></div>
+  <div class="card" style="max-width:380px;margin:16px 0">
+    <div class="card-tit">Solicitar saque</div>
+    <input class="auth-input" id="saqueValor" type="number" min="1" placeholder="Valor a sacar (Kz)">
+    <select class="auth-input" id="saqueMetodo">
+      <option value="">Método de recebimento</option>
+      <option value="Transferência bancária">Transferência bancária</option>
+      <option value="Multicaixa Express">Multicaixa Express</option>
+      <option value="Outro">Outro</option>
+    </select>
+    <input class="auth-input" id="saqueDados" placeholder="Conta/IBAN/carteira para recebimento">
+    <div class="auth-err" id="saqueErr"></div>
+    <button class="btn bv bsm" style="margin-top:10px" onclick="solicitarSaque(this)">Solicitar Saque</button>
+  </div>
+  ${!saques.length ? emptyState('💸','Ainda sem saques','O histórico dos teus pedidos de saque aparece aqui.') : `
+  <div class="table-wrap"><table><thead><tr><th>Valor</th><th>Método</th><th>Data</th><th>Estado</th></tr></thead><tbody>
+  ${saques.map(function(w){ return `<tr><td>${fmt(w.valor)} ${escHtml(w.moeda||'AOA')}</td><td>${escHtml(w.metodo)}</td><td>${fmtData(w.criadoEm)}</td><td><span class="pill ${w.estado==='PAGO'?'pill-g':w.estado==='REJEITADO'?'pill-r':'pill-v'}">${estadoLabel[w.estado]||w.estado}</span></td></tr>`; }).join('')}
+  </tbody></table></div>`}`;
+};
+
+/* ══════ FREELANCER V1 — colecções "projectos" + "propostas" ══════
+   Substitui o mock de "marketplace:freelancers". Segue exactamente os
+   nomes de campos/estados definidos no pedido — sem campos extra.
+   ATENÇÃO — bloqueio conhecido: "projectos" e "propostas" ainda NÃO
+   têm match block nas Firestore Rules (o catch-all "document=**" nega
+   tudo por omissão); todos os writes abaixo vão falhar com
+   permission-denied até as Rules serem publicadas. Implementado assim
+   de propósito, por instrução explícita de não mexer nas Rules nesta
+   etapa — ver relatório final. */
+function isFreelancerApproved(){
+  const u = AUTH.userDoc;
+  return !!(u && Array.isArray(u.roles) && u.roles.indexOf('FREELANCER')!==-1 && u.freelancerStatus==='ACTIVE');
+}
+
+let V1_freelancerTab = 'disponiveis'; // 'disponiveis' | 'publicar' | 'meusProjectos' | 'minhasPropostas'
+let V1_propostaFormAbertoId = null;   // projectoId com o formulário "Enviar proposta" aberto
+let V1_propostasRecebidasAbertoId = null; // projectoId com o painel "Propostas recebidas" aberto (cliente)
+
+function irParaTabFreelancer(tab){ V1_freelancerTab = tab; V1_propostaFormAbertoId = null; V1_propostasRecebidasAbertoId = null; render(); }
+
+function publicarProjecto(btnEl){
+  const titulo = (document.getElementById('projTitulo').value||'').trim();
+  const descricao = (document.getElementById('projDesc').value||'').trim();
+  const categoria = (document.getElementById('projCategoria').value||'').trim();
+  const orcamento = parseFloat(document.getElementById('projOrcamento').value);
+  const prazo = (document.getElementById('projPrazo').value||'').trim();
+  const errEl = document.getElementById('projErr');
+  errEl.textContent = '';
+  if(!titulo || !descricao){ errEl.textContent = 'Preenche título e descrição.'; return; }
+  if(!orcamento || orcamento<=0){ errEl.textContent = 'Indica um orçamento válido.'; return; }
+  if(!prazo){ errEl.textContent = 'Indica um prazo.'; return; }
+  const now = firebase.firestore.FieldValue.serverTimestamp();
+  runWithLocalLoader(btnEl, 'A publicar…', function(){
+    return fdb.collection('projectos').add({
+      clienteId: AUTH.uid, titulo: titulo, descricao: descricao, categoria: categoria||'Geral',
+      orcamento: orcamento, prazo: prazo, estado:'ABERTO', freelancerId: null, propostaAceitaId: null,
+      criadoEm: now, atualizadoEm: now
+    });
+  }, { successText:'Projecto publicado' })
+  .then(function(){
+    v1Invalidate('meusProjectosCliente'); v1Invalidate('projectosAbertos');
+    V1_freelancerTab = 'meusProjectos'; render();
+  })
+  .catch(function(){});
+}
+
+function toggleFormProposta(projectoId){
+  V1_propostaFormAbertoId = (V1_propostaFormAbertoId===projectoId) ? null : projectoId;
+  render();
+}
+
+/* Freelancer não pode propor no próprio projecto — verificado aqui
+   contra o clienteId real, lido no momento do envio (não confia no
+   que já estava na cache da listagem). */
+function enviarProposta(projectoId, btnEl){
+  if(!isFreelancerApproved()) return;
+  const valor = parseFloat(document.getElementById('propValor').value);
+  const prazo = (document.getElementById('propPrazo').value||'').trim();
+  const mensagem = (document.getElementById('propMensagem').value||'').trim();
+  const errEl = document.getElementById('propErr');
+  errEl.textContent = '';
+  if(!valor || valor<=0){ errEl.textContent = 'Indica um valor válido.'; return; }
+  if(!prazo){ errEl.textContent = 'Indica um prazo.'; return; }
+  const projectoRef = fdb.collection('projectos').doc(projectoId);
+  runWithLocalLoader(btnEl, 'A enviar proposta…', function(){
+    return projectoRef.get().then(function(snap){
+      if(!snap.exists) throw new Error('Este projecto já não existe.');
+      const p = snap.data();
+      if(p.clienteId === AUTH.uid) throw new Error('Não podes propor no teu próprio projecto.');
+      if(p.estado !== 'ABERTO') throw new Error('Este projecto já não está aberto a propostas.');
+      const now = firebase.firestore.FieldValue.serverTimestamp();
+      return fdb.collection('propostas').add({
+        projectoId: projectoId, freelancerId: AUTH.uid, valor: valor, prazo: prazo, mensagem: mensagem,
+        estado:'PENDENTE', criadoEm: now, atualizadoEm: now
+      });
+    });
+  }, { successText:'Proposta enviada' })
+  .then(function(){
+    V1_propostaFormAbertoId = null;
+    v1Invalidate('minhasPropostas'); render();
+  })
+  .catch(function(){});
+}
+
+function retirarProposta(propostaId, btnEl){
+  const ref = fdb.collection('propostas').doc(propostaId);
+  runWithLocalLoader(btnEl, 'A retirar…', function(){
+    return ref.get().then(function(snap){
+      if(!snap.exists) return;
+      const p = snap.data();
+      if(p.freelancerId !== AUTH.uid) throw new Error('Esta proposta não te pertence.');
+      if(p.estado !== 'PENDENTE') throw new Error('Só podes retirar propostas ainda PENDENTES.');
+      return ref.delete();
+    });
+  }, { successText:'Proposta retirada' })
+  .then(function(){ v1Invalidate('minhasPropostas'); render(); })
+  .catch(function(){});
+}
+
+function togglePropostasRecebidas(projectoId){
+  V1_propostasRecebidasAbertoId = (V1_propostasRecebidasAbertoId===projectoId) ? null : projectoId;
+  render();
+}
+
+/* Aceitar proposta: transacção lê projecto+proposta (nunca confia no
+   que a UI já tinha), muda a proposta escolhida para ACEITA, o
+   projecto para EM_CURSO, e rejeita em bloco as restantes propostas
+   PENDENTES do mesmo projecto (a partir da lista já carregada em
+   "Propostas recebidas" — sem nova query dentro da transacção). Um
+   projecto só pode ficar com uma proposta ACEITA porque isto corre
+   tudo atomicamente: se outra proposta já tiver sido aceite entretanto
+   (projecto já não está ABERTO/EM_ANALISE), a transacção falha. */
+function aceitarProposta(projectoId, propostaId, freelancerId, btnEl){
+  const projectoRef = fdb.collection('projectos').doc(projectoId);
+  const propostaRef = fdb.collection('propostas').doc(propostaId);
+  const outrasPendentes = (V1.cache['propostasProjecto:'+projectoId] || [])
+    .filter(function(p){ return p.id !== propostaId && p.estado === 'PENDENTE'; });
+  runWithLocalLoader(btnEl, 'A aceitar proposta…', function(){
+    return fdb.runTransaction(function(tx){
+      return tx.get(projectoRef).then(function(pSnap){
+        if(!pSnap.exists) throw new Error('Este projecto já não existe.');
+        const proj = pSnap.data();
+        if(proj.clienteId !== AUTH.uid) throw new Error('Este projecto não te pertence.');
+        if(proj.estado !== 'ABERTO' && proj.estado !== 'EM_ANALISE') throw new Error('Este projecto já não está a aceitar propostas.');
+        return tx.get(propostaRef).then(function(propSnap){
+          if(!propSnap.exists) throw new Error('Esta proposta já não existe.');
+          const prop = propSnap.data();
+          if(prop.projectoId !== projectoId) throw new Error('Proposta não pertence a este projecto.');
+          if(prop.estado !== 'PENDENTE') throw new Error('Esta proposta já foi decidida.');
+          const now = firebase.firestore.FieldValue.serverTimestamp();
+          tx.update(projectoRef, { estado:'EM_CURSO', freelancerId: freelancerId, propostaAceitaId: propostaId, atualizadoEm: now });
+          tx.update(propostaRef, { estado:'ACEITA', atualizadoEm: now });
+          outrasPendentes.forEach(function(op){
+            tx.update(fdb.collection('propostas').doc(op.id), { estado:'REJEITADA', atualizadoEm: now });
+          });
+        });
+      });
+    });
+  }, { successText:'Proposta aceite' })
+  .then(function(){
+    V1_propostasRecebidasAbertoId = null;
+    v1Invalidate('meusProjectosCliente'); v1Invalidate('propostasProjecto:'+projectoId); render();
+  })
+  .catch(function(){});
+}
+
+function marcarProjectoConcluido(projectoId, btnEl){
+  const ref = fdb.collection('projectos').doc(projectoId);
+  runWithLocalLoader(btnEl, 'A concluir…', function(){
+    return ref.get().then(function(snap){
+      if(!snap.exists) throw new Error('Este projecto já não existe.');
+      const p = snap.data();
+      if(p.clienteId !== AUTH.uid && p.freelancerId !== AUTH.uid) throw new Error('Este projecto não te pertence.');
+      if(p.estado !== 'EM_CURSO') throw new Error('Só projectos EM_CURSO podem ser concluídos.');
+      return ref.update({ estado:'CONCLUIDO', atualizadoEm: firebase.firestore.FieldValue.serverTimestamp() });
+    });
+  }, { successText:'Projecto concluído' })
+  .then(function(){ v1Invalidate('meusProjectosCliente'); v1Invalidate('projectosAceites'); render(); })
+  .catch(function(){});
+}
+
+function cancelarProjecto(projectoId, btnEl){
+  const ref = fdb.collection('projectos').doc(projectoId);
+  runWithLocalLoader(btnEl, 'A cancelar…', function(){
+    return ref.get().then(function(snap){
+      if(!snap.exists) throw new Error('Este projecto já não existe.');
+      const p = snap.data();
+      if(p.clienteId !== AUTH.uid) throw new Error('Este projecto não te pertence.');
+      if(p.estado !== 'ABERTO' && p.estado !== 'EM_ANALISE') throw new Error('Só é possível cancelar antes de aceitar uma proposta.');
+      return ref.update({ estado:'CANCELADO', atualizadoEm: firebase.firestore.FieldValue.serverTimestamp() });
+    });
+  }, { successText:'Projecto cancelado' })
+  .then(function(){ v1Invalidate('meusProjectosCliente'); render(); })
+  .catch(function(){});
+}
+
+const PROJ_ESTADO_LABEL = {ABERTO:'Aberto', EM_ANALISE:'Em análise', EM_CURSO:'Em curso', CONCLUIDO:'Concluído', CANCELADO:'Cancelado'};
+const PROJ_ESTADO_PILL = {ABERTO:'pill-v', EM_ANALISE:'pill-v', EM_CURSO:'pill-v', CONCLUIDO:'pill-g', CANCELADO:'pill-r'};
+const PROP_ESTADO_LABEL = {PENDENTE:'Pendente', ACEITA:'Aceite', REJEITADA:'Rejeitada'};
+const PROP_ESTADO_PILL = {PENDENTE:'pill-v', ACEITA:'pill-g', REJEITADA:'pill-r'};
+
+RENDERERS['marketplace:freelancers'] = function(){
+  const tabs = [['disponiveis','Projectos disponíveis'],['publicar','Publicar projecto'],['meusProjectos','Meus projectos'],['minhasPropostas','Minhas propostas']];
+  const tabRow = `<div class="tab-row">${tabs.map(function(t){ return `<span class="tab-chip ${V1_freelancerTab===t[0]?'active':''}" onclick="irParaTabFreelancer('${t[0]}')">${t[1]}</span>`; }).join('')}</div>`;
+
+  if(V1_freelancerTab === 'publicar'){
+    if(!AUTH.uid) return tabRow + loginGate('Entra para publicares um projecto.');
+    return tabRow + `<div class="card" style="max-width:420px">
+      <div class="card-tit">Publicar projecto</div>
+      <input class="auth-input" id="projTitulo" placeholder="Título do projecto">
+      <textarea class="auth-input" id="projDesc" placeholder="Descrição" rows="4"></textarea>
+      <input class="auth-input" id="projCategoria" placeholder="Categoria (ex.: Design, Programação, Redacção)">
+      <input class="auth-input" id="projOrcamento" type="number" min="1" placeholder="Orçamento (Kz)">
+      <input class="auth-input" id="projPrazo" placeholder="Prazo (ex.: 15 dias, 2025-12-01)">
+      <div class="auth-err" id="projErr"></div>
+      <button class="btn bv bsm" style="margin-top:10px" onclick="publicarProjecto(this)">Publicar projecto</button>
+    </div>`;
+  }
+
+  if(V1_freelancerTab === 'disponiveis'){
+    const key = 'projectosAbertos';
+    if(V1.cache[key]===undefined){
+      v1Fetch(key, function(){ return fdb.collection('projectos').where('estado','==','ABERTO').orderBy('criadoEm','desc').limit(60).get(); });
+      return tabRow + skeletonGrid();
+    }
+    const projectos = V1.cache[key];
+    if(!projectos.length) return tabRow + emptyState('💼','Sem projectos abertos','Volta mais tarde ou publica o teu próprio projecto.');
+    return tabRow + `<div class="grid">${projectos.map(function(p){
+      const formAberto = V1_propostaFormAbertoId === p.id;
+      const podeProper = AUTH.uid && isFreelancerApproved() && p.clienteId !== AUTH.uid;
+      return `<div class="card">
+        <div class="card-tit">${escHtml(p.titulo)}</div>
+        <div class="card-desc">${escHtml(p.descricao||'')}</div>
+        <div class="card-desc">Categoria: ${escHtml(p.categoria||'—')} · Prazo: ${escHtml(p.prazo||'—')}</div>
+        <div class="card-foot"><span>${fmt(p.orcamento)} Kz (orçamento)</span><span class="pill ${PROJ_ESTADO_PILL[p.estado]}">${PROJ_ESTADO_LABEL[p.estado]}</span></div>
+        ${!AUTH.uid ? `<div class="card-desc" style="margin-top:8px">Entra para enviares uma proposta.</div>` : ''}
+        ${AUTH.uid && !isFreelancerApproved() ? `<div class="card-desc" style="margin-top:8px">Precisas do papel Freelancer aprovado (Identidade → Papéis).</div>` : ''}
+        ${podeProper ? `<button class="btn bv bsm" style="margin-top:10px;width:100%" onclick="toggleFormProposta('${p.id}')">${formAberto?'Fechar':'Enviar proposta'}</button>` : ''}
+        ${(podeProper && formAberto) ? `<div class="card" style="margin-top:12px;background:var(--card2)">
+          <input class="auth-input" id="propValor" type="number" min="1" placeholder="O teu valor (Kz)">
+          <input class="auth-input" id="propPrazo" placeholder="O teu prazo">
+          <textarea class="auth-input" id="propMensagem" placeholder="Mensagem (opcional)" rows="3"></textarea>
+          <div class="auth-err" id="propErr"></div>
+          <button class="btn bv bsm" style="margin-top:10px" onclick="enviarProposta('${p.id}', this)">Enviar proposta</button>
+        </div>` : ''}
+      </div>`;
+    }).join('')}</div>`;
+  }
+
+  if(V1_freelancerTab === 'meusProjectos'){
+    if(!AUTH.uid) return tabRow + loginGate('Entra para veres os teus projectos.');
+    const key = 'meusProjectosCliente';
+    if(V1.cache[key]===undefined){
+      v1Fetch(key, function(){ return fdb.collection('projectos').where('clienteId','==',AUTH.uid).orderBy('criadoEm','desc').get(); });
+      return tabRow + skeletonGrid();
+    }
+    const projectos = V1.cache[key];
+    if(!projectos.length) return tabRow + emptyState('💼','Ainda não publicaste projectos','Usa "Publicar projecto" acima.');
+    return tabRow + `<div class="grid">${projectos.map(function(p){
+      const painelAberto = V1_propostasRecebidasAbertoId === p.id;
+      const propKey = 'propostasProjecto:'+p.id;
+      let painel = '';
+      if(painelAberto){
+        if(V1.cache[propKey]===undefined){
+          v1Fetch(propKey, function(){ return fdb.collection('propostas').where('projectoId','==',p.id).orderBy('criadoEm','desc').get(); });
+          painel = `<div style="margin-top:12px">${skeletonGrid()}</div>`;
+        } else {
+          const propostas = V1.cache[propKey];
+          painel = !propostas.length ? `<div class="card-desc" style="margin-top:10px">Ainda sem propostas recebidas.</div>` : `
+          <div class="table-wrap" style="margin-top:12px"><table><thead><tr><th>Freelancer</th><th>Valor</th><th>Prazo</th><th>Estado</th><th></th></tr></thead><tbody>
+          ${propostas.map(function(pr){
+            return `<tr><td style="font-family:monospace;font-size:11px">${escHtml(pr.freelancerId)}</td><td>${fmt(pr.valor)} Kz</td><td>${escHtml(pr.prazo)}</td><td><span class="pill ${PROP_ESTADO_PILL[pr.estado]}">${PROP_ESTADO_LABEL[pr.estado]}</span></td><td>${(pr.estado==='PENDENTE' && (p.estado==='ABERTO'||p.estado==='EM_ANALISE')) ? `<button class="btn bv bsm" onclick="aceitarProposta('${p.id}','${pr.id}','${pr.freelancerId}', this)">Aceitar</button>` : '—'}</td></tr>`;
+          }).join('')}
+          </tbody></table></div>`;
+        }
+      }
+      return `<div class="card">
+        <div class="card-tit">${escHtml(p.titulo)}</div>
+        <div class="card-desc">${escHtml(p.descricao||'')}</div>
+        <div class="card-foot"><span>${fmt(p.orcamento)} Kz</span><span class="pill ${PROJ_ESTADO_PILL[p.estado]}">${PROJ_ESTADO_LABEL[p.estado]}</span></div>
+        ${p.freelancerId ? `<div class="card-desc" style="margin-top:6px;font-family:monospace;font-size:11px">Freelancer: ${escHtml(p.freelancerId)}</div>` : ''}
+        ${(p.estado==='ABERTO'||p.estado==='EM_ANALISE') ? `<div style="display:flex;gap:8px;margin-top:10px">
+          <button class="btn bo bsm" style="flex:1" onclick="togglePropostasRecebidas('${p.id}')">${painelAberto?'Fechar':'Ver propostas recebidas'}</button>
+          <button class="btn bo bsm" style="flex:1" onclick="cancelarProjecto('${p.id}', this)">Cancelar</button>
+        </div>` : ''}
+        ${p.estado==='EM_CURSO' ? `<button class="btn bv bsm" style="margin-top:10px;width:100%" onclick="marcarProjectoConcluido('${p.id}', this)">Marcar como concluído</button>` : ''}
+        ${painel}
+      </div>`;
+    }).join('')}</div>`;
+  }
+
+  // V1_freelancerTab === 'minhasPropostas'
+  if(!AUTH.uid) return tabRow + loginGate('Entra para veres as tuas propostas.');
+  const keyProp = 'minhasPropostas', keyAceites = 'projectosAceites';
+  if(V1.cache[keyProp]===undefined) v1Fetch(keyProp, function(){ return fdb.collection('propostas').where('freelancerId','==',AUTH.uid).orderBy('criadoEm','desc').get(); });
+  if(V1.cache[keyAceites]===undefined) v1Fetch(keyAceites, function(){ return fdb.collection('projectos').where('freelancerId','==',AUTH.uid).orderBy('criadoEm','desc').get(); });
+  if(V1.cache[keyProp]===undefined || V1.cache[keyAceites]===undefined) return tabRow + skeletonGrid();
+  const minhasPropostas = V1.cache[keyProp];
+  const projectosAceites = V1.cache[keyAceites];
+  return tabRow + `
+  <div class="card-tit" style="margin-bottom:10px">Projectos onde fui aceite</div>
+  ${!projectosAceites.length ? emptyState('💼','Ainda nenhum','Quando um cliente aceitar uma proposta tua, o projecto aparece aqui.') : `
+  <div class="grid" style="margin-bottom:24px">${projectosAceites.map(function(p){
+    return `<div class="card">
+      <div class="card-tit">${escHtml(p.titulo)}</div>
+      <div class="card-desc">${escHtml(p.descricao||'')}</div>
+      <div class="card-foot"><span>${fmt(p.orcamento)} Kz</span><span class="pill ${PROJ_ESTADO_PILL[p.estado]}">${PROJ_ESTADO_LABEL[p.estado]}</span></div>
+      ${p.estado==='EM_CURSO' ? `<button class="btn bv bsm" style="margin-top:10px;width:100%" onclick="marcarProjectoConcluido('${p.id}', this)">Marcar como concluído</button>` : ''}
+    </div>`;
+  }).join('')}</div>`}
+  <div class="card-tit" style="margin-bottom:10px">Minhas propostas</div>
+  ${!minhasPropostas.length ? emptyState('📨','Ainda sem propostas enviadas','Vai a "Projectos disponíveis" para enviares a primeira.') : `
+  <div class="table-wrap"><table><thead><tr><th>Projecto</th><th>Valor</th><th>Prazo</th><th>Estado</th><th></th></tr></thead><tbody>
+  ${minhasPropostas.map(function(pr){
+    return `<tr><td style="font-family:monospace;font-size:11px">${escHtml(pr.projectoId)}</td><td>${fmt(pr.valor)} Kz</td><td>${escHtml(pr.prazo)}</td><td><span class="pill ${PROP_ESTADO_PILL[pr.estado]}">${PROP_ESTADO_LABEL[pr.estado]}</span></td><td>${pr.estado==='PENDENTE' ? `<button class="btn bo bsm" onclick="retirarProposta('${pr.id}', this)">Retirar</button>` : '—'}</td></tr>`;
+  }).join('')}
+  </tbody></table></div>`}`;
 };
 
 /* ══════ ADMINISTRAÇÃO › OFERTAS (moderação real) ══════ */
@@ -2053,20 +3129,72 @@ function adminMarcarPago(pid, vendedorId, valor, moeda, chargeId, btnEl){
       return tx.get(pedidoRef).then(function(pSnap){
         if(!pSnap.exists) throw new Error('Este pedido já não existe.');
         const p = pSnap.data();
-        if(p.estado !== 'AGUARDA_PAGAMENTO') throw new Error('Este pedido já foi processado (estado actual: ' + p.estado + ').');
-        const now = firebase.firestore.FieldValue.serverTimestamp();
-        // Comissão calculada aqui, uma única vez, no momento em que o
-        // registo nasce — nunca recalculada depois, para o valor devido
-        // não mudar se a percentagem for alterada no futuro.
-        const comissaoIP = Math.round(valor * COMISSAO_IP_PERCENT * 100) / 100;
-        const valorDevidoVendedor = Math.round((valor - comissaoIP) * 100) / 100;
-        tx.update(pedidoRef, { estado:'PAGO', 'pagamento.estadoGateway':'PAID', 'pagamento.atualizadoEm':now, atualizadoEm:now });
-        tx.set(registoRef, { pedidoId:pid, vendedorId:vendedorId, valorVenda:valor, comissaoIP:comissaoIP, valorDevidoVendedor:valorDevidoVendedor, moeda:moeda||'AOA', estado:'DEVIDO', referenciaPagamento:chargeId||null, criadoEm:now });
+        // Aceita as duas origens possíveis do pagamento: o fluxo AppyPay
+        // já existente (AGUARDA_PAGAMENTO, associado por adminAnexarCobranca)
+        // e o novo fluxo manual com comprovativo (PAGAMENTO_ENVIADO). Mesma
+        // função para os dois — não há um segundo "marcar pago".
+        if(p.estado !== 'AGUARDA_PAGAMENTO' && p.estado !== 'PAGAMENTO_ENVIADO') throw new Error('Este pedido já foi processado (estado actual: ' + p.estado + ').');
+        // Afiliados: só o Admin consegue ler affiliateProfiles de outra
+        // pessoa (Rule: dono ou Admin) — por isso esta validação real só
+        // pode acontecer aqui, nunca no checkout do comprador. Todas as
+        // leituras (incluindo esta, condicional) têm de vir antes de
+        // qualquer escrita da transacção — por isso o tx.get() acontece
+        // já a seguir, antes de qualquer tx.set/tx.update.
+        const afiliadoId = (p.afiliadoId && p.afiliadoId !== vendedorId) ? p.afiliadoId : null;
+        const afilPromise = afiliadoId ? tx.get(fdb.collection('affiliateProfiles').doc(afiliadoId)) : Promise.resolve(null);
+        return afilPromise.then(function(afilSnap){
+          const now = firebase.firestore.FieldValue.serverTimestamp();
+          // Comissão calculada aqui, uma única vez, no momento em que o
+          // registo nasce — nunca recalculada depois, para o valor devido
+          // não mudar se a percentagem for alterada no futuro.
+          const comissaoIP = Math.round(valor * COMISSAO_IP_PERCENT * 100) / 100;
+          const valorDevidoVendedor = Math.round((valor - comissaoIP) * 100) / 100;
+          tx.update(pedidoRef, { estado:'PAGO', 'pagamento.estadoGateway':'PAID', 'pagamento.atualizadoEm':now, atualizadoEm:now });
+          tx.set(registoRef, { pedidoId:pid, vendedorId:vendedorId, valorVenda:valor, comissaoIP:comissaoIP, valorDevidoVendedor:valorDevidoVendedor, moeda:moeda||'AOA', estado:'DEVIDO', referenciaPagamento:chargeId||null, criadoEm:now });
+          // Só regista comissão de afiliado se o perfil existir e estiver
+          // MESMO activo, com percentagem > 0 — nunca inventado, nunca
+          // assumido a partir do que o comprador escreveu no checkout.
+          if(afiliadoId && afilSnap && afilSnap.exists){
+            const afil = afilSnap.data();
+            const pct = (typeof afil.percentagem === 'number') ? afil.percentagem : 0;
+            if(afil.activo === true && pct > 0){
+              const comissaoAfiliado = Math.round(valor * (pct/100) * 100) / 100;
+              tx.set(fdb.collection('affiliateAttributions').doc(pid), {
+                pedidoId: pid, afiliadoId: afiliadoId, vendedorId: vendedorId, ofertaId: p.ofertaId||null,
+                valorVenda: valor, percentagemAplicada: pct, comissaoAfiliado: comissaoAfiliado,
+                moeda: moeda||'AOA', estado:'DEVIDO', criadoEm: now
+              });
+              // Rollup de leitura própria do afiliado (Opção B aprovada):
+              // affiliateStats/{afiliadoId} é o ÚNICO doc que a Rule deixa o
+              // próprio afiliado ler (dono ou Admin) — affiliateAttributions
+              // continua Admin-only. Usa increment() em vez de ler+somar,
+              // porque estamos dentro de uma transacção que já tem leituras
+              // condicionais antes (afilPromise) — não misturar mais uma
+              // leitura aqui evita reabrir a discussão de ordem read-before-
+              // write da transacção. increment() é atómico e idempotente:
+              // como este bloco só corre se o pedido ainda estava em
+              // AGUARDA_PAGAMENTO/PAGAMENTO_ENVIADO (verificado acima) e o
+              // pedido passa já a 'PAGO' nesta mesma transacção, não há
+              // forma de este incremento correr duas vezes para o mesmo pid.
+              tx.set(fdb.collection('affiliateStats').doc(afiliadoId), {
+                vendasCount: firebase.firestore.FieldValue.increment(1),
+                comissaoTotalDevida: firebase.firestore.FieldValue.increment(comissaoAfiliado),
+                comissaoTotalPaga: firebase.firestore.FieldValue.increment(0), // garante o campo existir mesmo sem liquidações ainda
+                atualizadoEm: now
+              }, { merge:true });
+            }
+          }
+        });
       });
     });
   }, { successText:'Marcado como pago' })
-  .then(function(){ v1Invalidate('todosPedidosAdmin'); v1Invalidate('todosRegistosFinanceiros'); render(); })
+  .then(function(){ v1Invalidate('todosPedidosAdmin'); v1Invalidate('todosRegistosFinanceiros'); v1Invalidate('todasAtribuicoesAfiliados'); render(); })
   .catch(function(){});
+  // Nota: não invalidamos aqui 'meuAfiliadoStats' porque essa chave só
+  // existe na sessão do PRÓPRIO afiliado (outro browser/utilizador) — o
+  // Admin não tem esse cache carregado. O afiliado vê o número
+  // actualizado da próxima vez que abrir Afiliados → Desempenho
+  // (v1Fetch busca de novo, cache por sessão, sem onSnapshot).
 }
 function adminMarcarFalhou(pid, btnEl){
   runWithLocalLoader(btnEl, 'A marcar falha…', function(){
@@ -2162,16 +3290,35 @@ RENDERERS['administracao:pedidos'] = function(){
     return skeletonGrid();
   }
   const pedidos = V1.cache[key];
-  const estadoLabel = {CRIADO:'Criado', AGUARDA_PAGAMENTO:'Aguarda pagamento', PAGO:'Pago', ENTREGUE:'Entregue', FALHOU:'Falhou', CANCELADO:'Cancelado'};
+  const estadoLabel = {CRIADO:'Criado', AGUARDA_PAGAMENTO:'Aguarda pagamento', PAGAMENTO_ENVIADO:'Comprovativo enviado', PAGO:'Pago', ENTREGUE:'Entregue', FALHOU:'Falhou', CANCELADO:'Cancelado'};
   if(!pedidos.length) return emptyState('🧾','Sem pedidos ainda','Aparecem aqui assim que um cliente comprar.');
   return `<button class="btn bo bsm" style="margin-bottom:12px" onclick="refreshV1('todosPedidosAdmin', this)">Actualizar</button>
-  <div class="table-wrap"><table><thead><tr><th>Produto</th><th>Valor</th><th>Estado</th><th>Acções</th></tr></thead><tbody>
+  <div class="table-wrap"><table><thead><tr><th>ID</th><th>Produto</th><th>Oferta</th><th>Comprador</th><th>Vendedor</th><th>Valor</th><th>Data</th><th>Comprovativo</th><th>Estado</th><th>Acções</th></tr></thead><tbody>
   ${pedidos.map(function(p){
     let acoes = '—';
     if(p.estado==='CRIADO') acoes = `<button class="btn bo bsm" onclick="adminAnexarCobranca('${p.id}',this)">Associar cobrança</button> <button class="btn bo bsm" onclick="adminCancelarPedido('${p.id}',this)">Cancelar</button>`;
     else if(p.estado==='AGUARDA_PAGAMENTO') acoes = `<button class="btn bv bsm" onclick="adminMarcarPago('${p.id}','${p.vendedorId}',${p.valor},'${p.moeda||'AOA'}','${(p.pagamento&&p.pagamento.chargeId)||''}',this)">Marcar pago</button> <button class="btn bo bsm" onclick="adminMarcarFalhou('${p.id}',this)">Falhou</button>`;
-    else if(p.estado==='PAGO') acoes = `<button class="btn bv bsm" onclick="adminEntregarPedido('${p.id}','${p.ofertaId}',this)">Liberar entrega</button>`;
-    return `<tr><td>${escHtml(p.tituloSnapshot)}</td><td>${fmt(p.valor)} ${escHtml(p.moeda)}</td><td><span class="pill pill-n">${estadoLabel[p.estado]||p.estado}</span></td><td style="display:flex;gap:6px;flex-wrap:wrap">${acoes}</td></tr>`;
+    // PAGAMENTO_ENVIADO reutiliza as MESMAS funções de sempre — não há
+    // um segundo "aprovar/rejeitar": Aprovar = adminMarcarPago (já
+    // aceita este estado, ver comentário na função), Rejeitar =
+    // adminMarcarFalhou (já existia, sem alterações).
+    else if(p.estado==='PAGAMENTO_ENVIADO') acoes = `<button class="btn bv bsm" onclick="adminMarcarPago('${p.id}','${p.vendedorId}',${p.valor},'${p.moeda||'AOA'}','',this)">Aprovar pagamento</button> <button class="btn bo bsm" onclick="adminMarcarFalhou('${p.id}',this)">Rejeitar pagamento</button>`;
+    // "Configurar link" reutiliza o MESMO modal/função já usados em
+    // Administração → Ofertas (openConfigurarEntrega/guardarLinkEntrega,
+    // que escrevem em ofertasPrivado) — só passou a estar acessível
+    // também a partir daqui, sem duplicar lógica nenhuma. "Liberar
+    // entrega" continua a ser adminEntregarPedido(), inalterada.
+    else if(p.estado==='PAGO') acoes = `<button class="btn bo bsm" onclick="openConfigurarEntrega('${p.ofertaId}','${escHtml(p.tituloSnapshot).replace(/'/g,"\\'")}','${p.vendedorId}')">Configurar link de entrega</button> <button class="btn bv bsm" onclick="adminEntregarPedido('${p.id}','${p.ofertaId}',this)">Marcar como ENTREGUE</button>`;
+    const comprovativoCell = p.comprovativo
+      ? `<div style="font-size:11px;line-height:1.5">
+           <b>${escHtml(p.comprovativo.nomeTitular||'—')}</b><br>
+           Ref.: ${escHtml(p.comprovativo.referencia||'—')}<br>
+           ${p.comprovativo.contaPagamento ? 'Conta: '+escHtml(p.comprovativo.contaPagamento)+'<br>' : ''}
+           ${p.comprovativo.observacao ? 'Obs.: '+escHtml(p.comprovativo.observacao)+'<br>' : ''}
+           <span style="color:var(--g3lt)">${fmtData(p.comprovativo.enviadoEm)}</span>
+         </div>`
+      : '—';
+    return `<tr><td style="font-family:monospace;font-size:11px;color:var(--g3lt)">${escHtml(p.id)}</td><td>${escHtml(p.tituloSnapshot)}</td><td style="font-family:monospace;font-size:11px;color:var(--g3lt)">${escHtml(p.ofertaId)}</td><td style="font-family:monospace;font-size:11px">${escHtml(p.compradorId)}</td><td style="font-family:monospace;font-size:11px">${escHtml(p.vendedorId)}</td><td>${fmt(p.valor)} ${escHtml(p.moeda)}</td><td>${fmtData(p.criadoEm)}</td><td>${comprovativoCell}</td><td><span class="pill pill-n">${estadoLabel[p.estado]||p.estado}</span></td><td style="display:flex;gap:6px;flex-wrap:wrap">${acoes}</td></tr>`;
   }).join('')}
   </tbody></table></div>`;
 };
@@ -2228,9 +3375,9 @@ RENDERERS['administracao:utilizadores'] = function(){
       // carregar toda a colecção users — só o que realmente precisa de
       // decisão do Admin.
       return Promise.all([
-        fdb.collection('users').where('sellerStatus','==','PENDING').get(),
-        fdb.collection('users').where('serviceProviderStatus','==','PENDING').get(),
-        fdb.collection('users').where('freelancerStatus','==','PENDING').get()
+        fdb.collection('users').where('sellerStatus','==','PENDING').limit(100).get(),
+        fdb.collection('users').where('serviceProviderStatus','==','PENDING').limit(100).get(),
+        fdb.collection('users').where('freelancerStatus','==','PENDING').limit(100).get()
       ]).then(function(snaps){
         const out = [];
         const fields = ['sellerStatus','serviceProviderStatus','freelancerStatus'];
@@ -2254,6 +3401,112 @@ RENDERERS['administracao:utilizadores'] = function(){
   }).join('')}
   </tbody></table></div>`;
 };
+
+/* ══════ ADMINISTRAÇÃO › SAQUES (processar solicitações) ══════
+   Segue o mesmo padrão de todas as outras acções Admin já existentes
+   neste ficheiro (adminMarcarPago, adminEntregarPedido, etc.): escrita
+   directa gated pela Rule isAdmin(), sem Cloud Function nova. Fluxo:
+   SOLICITADO → EM_PROCESSAMENTO → PAGO / REJEITADO. Isto NÃO liquida
+   automaticamente os registosFinanceiros do vendedor (isso continua a
+   ser feito manualmente em Administração → Financeiro, "Marcar
+   liquidado" — inalterado); ligar os dois passos automaticamente
+   exigiria decidir QUAIS registos específicos ficam associados a qual
+   saque, o que seria inventar uma lógica de alocação nova — preferi
+   não o fazer sem indicação explícita. */
+NAV.administracao.subs.saques = 'Saques';
+function adminProcessarSaque(id, btnEl){
+  runWithLocalLoader(btnEl, 'A iniciar processamento…', function(){
+    return fdb.collection('withdrawals').doc(id).get().then(function(snap){
+      if(!snap.exists) throw new Error('Este saque já não existe.');
+      if(snap.data().estado !== 'SOLICITADO') throw new Error('Este saque já não está em SOLICITADO.');
+      return fdb.collection('withdrawals').doc(id).update({ estado:'EM_PROCESSAMENTO', atualizadoEm: firebase.firestore.FieldValue.serverTimestamp() });
+    });
+  }, { successText:'Em processamento' })
+  .then(function(){ v1Invalidate('todosSaquesAdmin'); render(); })
+  .catch(function(){});
+}
+function adminMarcarSaquePago(id, btnEl){
+  runWithLocalLoader(btnEl, 'A marcar pago…', function(){
+    return fdb.collection('withdrawals').doc(id).get().then(function(snap){
+      if(!snap.exists) throw new Error('Este saque já não existe.');
+      if(snap.data().estado !== 'SOLICITADO' && snap.data().estado !== 'EM_PROCESSAMENTO') throw new Error('Este saque já foi decidido.');
+      return fdb.collection('withdrawals').doc(id).update({ estado:'PAGO', atualizadoEm: firebase.firestore.FieldValue.serverTimestamp() });
+    });
+  }, { successText:'Saque pago' })
+  .then(function(){ v1Invalidate('todosSaquesAdmin'); render(); })
+  .catch(function(){});
+}
+function adminRejeitarSaque(id, btnEl){
+  runWithLocalLoader(btnEl, 'A rejeitar…', function(){
+    return fdb.collection('withdrawals').doc(id).get().then(function(snap){
+      if(!snap.exists) throw new Error('Este saque já não existe.');
+      if(snap.data().estado !== 'SOLICITADO' && snap.data().estado !== 'EM_PROCESSAMENTO') throw new Error('Este saque já foi decidido.');
+      return fdb.collection('withdrawals').doc(id).update({ estado:'REJEITADO', atualizadoEm: firebase.firestore.FieldValue.serverTimestamp() });
+    });
+  }, { successText:'Saque rejeitado' })
+  .then(function(){ v1Invalidate('todosSaquesAdmin'); render(); })
+  .catch(function(){});
+}
+RENDERERS['administracao:saques'] = function(){
+  const key = 'todosSaquesAdmin';
+  if(V1.cache[key]===undefined){
+    v1Fetch(key, function(){ return fdb.collection('withdrawals').orderBy('criadoEm','desc').limit(200).get(); });
+    return skeletonGrid();
+  }
+  const saques = V1.cache[key];
+  const estadoLabel = {SOLICITADO:'Solicitado', EM_PROCESSAMENTO:'Em processamento', PAGO:'Pago', REJEITADO:'Rejeitado'};
+  if(!saques.length) return emptyState('💸','Sem solicitações de saque ainda','Aparecem aqui quando um vendedor solicitar.');
+  return `<button class="btn bo bsm" style="margin-bottom:12px" onclick="refreshV1('todosSaquesAdmin', this)">Actualizar</button>
+  <div class="table-wrap"><table><thead><tr><th>Vendedor</th><th>Valor</th><th>Método</th><th>Dados</th><th>Data</th><th>Estado</th><th>Acções</th></tr></thead><tbody>
+  ${saques.map(function(w){
+    let acoes = '—';
+    if(w.estado==='SOLICITADO') acoes = `<button class="btn bo bsm" onclick="adminProcessarSaque('${w.id}',this)">Iniciar processamento</button> <button class="btn bv bsm" onclick="adminMarcarSaquePago('${w.id}',this)">Marcar pago</button> <button class="btn bo bsm" onclick="adminRejeitarSaque('${w.id}',this)">Rejeitar</button>`;
+    else if(w.estado==='EM_PROCESSAMENTO') acoes = `<button class="btn bv bsm" onclick="adminMarcarSaquePago('${w.id}',this)">Marcar pago</button> <button class="btn bo bsm" onclick="adminRejeitarSaque('${w.id}',this)">Rejeitar</button>`;
+    return `<tr><td style="font-family:monospace;font-size:11px">${escHtml(w.vendedorId)}</td><td>${fmt(w.valor)} ${escHtml(w.moeda||'AOA')}</td><td>${escHtml(w.metodo)}</td><td style="font-size:11px;color:var(--g3lt)">${escHtml(w.dadosRecebimento)}</td><td>${fmtData(w.criadoEm)}</td><td><span class="pill ${w.estado==='PAGO'?'pill-g':w.estado==='REJEITADO'?'pill-r':'pill-v'}">${estadoLabel[w.estado]||w.estado}</span></td><td style="display:flex;gap:6px;flex-wrap:wrap">${acoes}</td></tr>`;
+  }).join('')}
+  </tbody></table></div>`;
+};
+
+/* ══════ ADMINISTRAÇÃO › AFILIADOS (consulta das atribuições reais) ══════
+   affiliateAttributions só existe com registos genuínos, criados por
+   adminMarcarPago() quando há mesmo um afiliado válido e activo — ver
+   comentário nessa função. Só consulta; sem acções aqui nesta fase. */
+NAV.administracao.subs.afiliados = 'Afiliados';
+RENDERERS['administracao:afiliados'] = function(){
+  const key = 'todasAtribuicoesAfiliados';
+  if(V1.cache[key]===undefined){
+    v1Fetch(key, function(){ return fdb.collection('affiliateAttributions').orderBy('criadoEm','desc').limit(200).get(); });
+    return skeletonGrid();
+  }
+  const atrib = V1.cache[key];
+  if(!atrib.length) return emptyState('🔗','Sem comissões de afiliado ainda','Criadas automaticamente quando um pedido com afiliado válido é marcado como pago.');
+  const total = atrib.reduce(function(s,a){ return s + (a.estado==='DEVIDO' ? (a.comissaoAfiliado||0) : 0); }, 0);
+  return `<button class="btn bo bsm" style="margin-bottom:12px" onclick="refreshV1('todasAtribuicoesAfiliados', this)">Actualizar</button>
+  <div class="stat-row"><div class="stat-card"><div class="stat-lbl">Total devido a afiliados</div><div class="stat-val">${fmt(total)} <small>Kz</small></div></div></div>
+  <div class="table-wrap"><table><thead><tr><th>Pedido</th><th>Afiliado</th><th>Vendedor</th><th>Valor venda</th><th>%</th><th>Comissão</th><th>Estado</th></tr></thead><tbody>
+  ${atrib.map(function(a){ return `<tr><td style="font-family:monospace;font-size:11px">${escHtml(a.pedidoId)}</td><td style="font-family:monospace;font-size:11px">${escHtml(a.afiliadoId)}</td><td style="font-family:monospace;font-size:11px">${escHtml(a.vendedorId)}</td><td>${fmt(a.valorVenda)} ${escHtml(a.moeda||'AOA')}</td><td>${a.percentagemAplicada}%</td><td>${fmt(a.comissaoAfiliado)} ${escHtml(a.moeda||'AOA')}</td><td><span class="pill ${a.estado==='LIQUIDADO'?'pill-g':'pill-v'}">${a.estado}</span></td></tr>`; }).join('')}
+  </tbody></table></div>
+  ${v1Note('sem saque de afiliado nesta fase — o módulo Saques (Financeiro → Saques) só cobre o saldo de vendedor em registosFinanceiros. Pagar afiliados ficaria para uma extensão futura.')}`;
+};
+
+/* ══════ CAPTURA DE REFERRAL (?ref=&oferta=) — leitura pontual do URL
+   no arranque da app, guardada em sessionStorage para sobreviver à
+   navegação interna (que não usa URL real, ver ST/go()). Não toca em
+   Auth nem em nenhuma rota existente; se não houver "ref" na URL, não
+   faz nada. O afiliado só é mesmo aplicado dentro de
+   confirmarCheckout(), com as validações de autoindicação já lá. ══ */
+(function capturarReferralDaURL(){
+  try{
+    const params = new URLSearchParams(location.search);
+    const ref = params.get('ref');
+    const ofertaId = params.get('oferta');
+    if(ref) sessionStorage.setItem('ipd_ref', ref);
+    if(ofertaId){
+      ST.section = 'marketplace'; ST.sub = 'digital';
+      setTimeout(function(){ abrirDetalheOferta(ofertaId); }, 0);
+    }
+  }catch(e){ /* sessionStorage/URL indisponíveis (modo privado, etc.) — ignora silenciosamente */ }
+})();
 
 buildNav();
 render();
