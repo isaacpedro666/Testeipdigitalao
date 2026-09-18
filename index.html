@@ -127,9 +127,9 @@ img{display:block;max-width:100%}
 .gl-center--local{background:var(--black);border:1px solid rgba(34,197,94,.35);border-radius:16px;padding:20px 26px;box-shadow:0 14px 34px rgba(0,0,0,.5);transform:scale(.62)}
 @media(prefers-reduced-motion:reduce){.gl-center--local{transform:scale(.62)}}
 
-/* ═══ SKELETON LOADING — base reutilizável, preparada para o redesign
-   (listas de produtos/serviços/pedidos/notificações). Não usada ainda
-   em nenhuma página real desta fase. ═══ */
+/* ═══ SKELETON LOADING — base reutilizável para placeholders de
+   conteúdo (listas de produtos/serviços/pedidos/notificações), usada
+   por skeletonGrid() em todas as páginas V1 reais. ═══ */
 .skel{position:relative;overflow:hidden;background:var(--card2);border-radius:8px}
 .skel::after{content:'';position:absolute;inset:0;transform:translateX(-100%);background:linear-gradient(90deg,transparent,rgba(255,255,255,.07),transparent);animation:skel-shimmer 1.5s ease-in-out infinite}
 @keyframes skel-shimmer{100%{transform:translateX(100%)}}
@@ -171,8 +171,8 @@ tr:last-child td{border-bottom:none}
 .badge-role{display:inline-flex;align-items:center;gap:4px;font-size:10.5px;font-weight:700;padding:3px 9px;border-radius:20px;background:var(--card2);color:var(--g3lt);border:1px solid var(--g1)}
 .badge-role.on{background:var(--vbg);color:var(--vdim);border-color:var(--vlt)}
 
-.mock-note{display:flex;gap:10px;align-items:flex-start;background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.3);border-radius:var(--rsm);padding:12px 14px;margin-bottom:22px;font-size:12px;color:var(--g3lt)}
-.mock-note b{color:var(--vbtn)}
+.v1-note{display:flex;gap:10px;align-items:flex-start;background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.3);border-radius:var(--rsm);padding:12px 14px;margin-bottom:22px;font-size:12px;color:var(--g3lt)}
+.v1-note b{color:var(--vbtn)}
 
 .page{display:none}
 .page.active{display:block;animation:fadeIn .25s ease}
@@ -283,6 +283,27 @@ tr:last-child td{border-bottom:none}
   .mkt-steps{grid-template-columns:repeat(4,1fr)}
 }
 @media(min-width:760px){.app-footer{padding-bottom:24px}}
+
+/* ══ CHAT V1 — reutiliza as variáveis de cor/tipografia já existentes,
+   não introduz nenhuma linguagem visual nova. ══ */
+.chat-list-item{display:flex;align-items:center;gap:12px;padding:12px;border-radius:var(--r);border:1px solid var(--g1);background:var(--card);cursor:pointer;margin-bottom:8px}
+.chat-list-item:hover{border-color:var(--vlt)}
+.chat-list-avatar{width:38px;height:38px;border-radius:50%;background:var(--vlt);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;flex-shrink:0}
+.chat-list-body{flex:1;min-width:0}
+.chat-list-name{font-weight:700;font-size:13.5px;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chat-list-preview{font-size:12px;color:var(--g3lt);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px}
+.chat-list-meta{display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0}
+.chat-list-time{font-size:10.5px;color:var(--g3lt)}
+.chat-unread-dot{width:9px;height:9px;border-radius:50%;background:var(--vlt)}
+.chat-window{display:flex;flex-direction:column;height:min(70vh,560px);border:1px solid var(--g1);border-radius:var(--r-lg);background:var(--card);overflow:hidden}
+.chat-window-head{display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid var(--g1)}
+.chat-messages{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:8px}
+.chat-msg{max-width:78%;padding:8px 12px;border-radius:14px;font-size:13px;line-height:1.4;white-space:pre-wrap;word-break:break-word}
+.chat-msg.theirs{align-self:flex-start;background:var(--g1);color:#fff;border-bottom-left-radius:4px}
+.chat-msg.mine{align-self:flex-end;background:var(--vlt);color:#fff;border-bottom-right-radius:4px}
+.chat-msg-time{display:block;font-size:9.5px;opacity:.7;margin-top:3px;text-align:right}
+.chat-input-row{display:flex;gap:8px;padding:10px;border-top:1px solid var(--g1)}
+.chat-input-row textarea{flex:1;resize:none;border-radius:10px;border:1px solid var(--g1);padding:9px 12px;font-size:13px;font-family:inherit;background:var(--black);color:#fff;max-height:80px}
 </style>
 </head>
 <body>
@@ -433,10 +454,7 @@ tr:last-child td{border-bottom:none}
 
 <script>
 /* ══════════════════════════════════════════════════════════════
-   IP DIGITAL AO 2.0 — SKELETON
-   Frontend puro. Sem Firebase, sem escrita real de dinheiro.
-   Dados: mock estático + localStorage para estado de navegação/UI.
-   Objectivo: validar IA (informação/arquitectura) e fluxos, não é o produto final.
+   IP DIGITAL AO — V1
    ══════════════════════════════════════════════════════════════ */
 
 const ROLE_LABELS = {
@@ -532,21 +550,6 @@ function uploadImagemOferta(ofertaId, file){
   });
 }
 
-/* ══════════════ DIAGNÓSTICO TEMPORÁRIO — REMOVER DEPOIS ══════════════
-   Regista, com timestamp relativo, exactamente onde o fluxo de auth
-   está — tanto na consola (para inspeção via chrome://inspect / USB
-   debugging) como visivelmente no próprio ecrã (para quando só há o
-   telemóvel, sem DevTools ligado). Não muda nenhum comportamento. */
-window.__diagStart = null;
-window.__diagLastStep = null;
-function diagLog(step, extra){
-  if(window.__diagStart===null) window.__diagStart = performance.now();
-  const ms = Math.round(performance.now() - window.__diagStart);
-  window.__diagLastStep = step + ' (+' + ms + 'ms)';
-  console.log('[DIAG +' + ms + 'ms] ' + step, extra!==undefined ? extra : '');
-}
-/* ═══════════════════════════════════════════════════════════════════ */
-
 let AUTH = { user:null, uid:null, userDoc:null, profileDoc:null, isAdmin:false, hasPendingVerification:false, ready:false };
 
 function openAuth(){ document.getElementById('authOverlay').classList.add('open'); document.getElementById('authErr').style.color='var(--red)'; }
@@ -597,7 +600,6 @@ function submitAuth(){
   }
   if(!email || !pass){ errEl.textContent='Preenche email e palavra-passe.'; return; }
 
-  window.__diagStart = performance.now(); // reinicia o cronómetro de diagnóstico a cada tentativa
   btn.disabled = true; // guarda de duplo clique imediata — mesmo antes do loader global aparecer (anti-flicker atrasa o visual, não a protecção)
 
   // Guarda de segurança adicional: sem isto, se o pedido ao Firebase ficasse
@@ -612,11 +614,9 @@ function submitAuth(){
     hideGlobalLoader();
     btn.disabled = false;
     errEl.style.color='var(--red)';
-    errEl.textContent = 'BLOQUEADO em: ' + window.__diagLastStep + ' — sem resposta em 15s.';
-    console.warn('[DIAG] TIMEOUT — última etapa registada:', window.__diagLastStep);
+    errEl.textContent = 'Sem resposta em 15s. Verifica a tua ligação e tenta novamente.';
   }, 15000);
 
-  diagLog(authTab==='signup' ? 'AUTH STEP A START (createUserWithEmailAndPassword)' : 'AUTH STEP D START (signInWithEmailAndPassword)');
 
   // Sequência exacta pedida: validação (acima) → mostrar loader global →
   // Firebase Authentication → bootstrap dos documentos Firestore →
@@ -625,37 +625,31 @@ function submitAuth(){
   runWithGlobalLoader(authTab==='signup' ? 'A criar a tua conta…' : 'A entrar…', function(){
     return authTab==='signup'
       ? fbAuth.createUserWithEmailAndPassword(email, pass).then(function(cred){
-          diagLog('AUTH STEP A SUCCESS (createUserWithEmailAndPassword)', {uid: cred.user.uid});
           const name = document.getElementById('authName').value.trim() || 'Utilizador';
-          diagLog('AUTH STEP A2 START (updateProfile)');
           return cred.user.updateProfile({displayName:name}).then(function(){
-            diagLog('AUTH STEP A2 SUCCESS (updateProfile)');
             return bootstrapUserDocs(cred.user, name);
           });
         })
       : fbAuth.signInWithEmailAndPassword(email, pass).then(function(cred){
-          diagLog('AUTH STEP D SUCCESS (signInWithEmailAndPassword)', {uid: cred.user.uid});
           return cred;
         });
   }, authTab==='signup' ? 'Conta criada com sucesso.' : 'Sessão iniciada.')
   .then(function(){
     if(settled) return;
     settled = true; clearTimeout(timeoutId);
-    diagLog('FLOW COMPLETE — closeAuth()');
     closeAuth();
   })
   .catch(function(err){
     if(settled) return;
     settled = true; clearTimeout(timeoutId);
-    // DIAGNÓSTICO: mostra o erro REAL, sem mascarar em texto genérico.
+    // Mostra o erro REAL do Firebase, sem mascarar em texto genérico —
     // runWithGlobalLoader já mostrou um toast; isto acrescenta o detalhe
-    // completo no próprio formulário, para depuração.
-    diagLog('FLOW FAILED', {code: err && err.code, message: err && err.message});
+    // completo no próprio formulário, para depuração pelo utilizador/suporte.
     console.error('Erro de autenticação/registo (detalhe completo):', err);
     errEl.style.color='var(--red)';
-    errEl.textContent = 'Falhou em: ' + window.__diagLastStep.split(' (+')[0] +
-      ' | code: ' + (err && err.code || '(sem code)') +
-      ' | message: ' + (err && err.message || '(sem message)');
+    errEl.textContent = 'Falhou'
+      + ' | code: ' + (err && err.code || '(sem code)')
+      + ' | message: ' + (err && err.message || '(sem message)');
   })
   .finally(function(){
     if(!settled){ settled = true; clearTimeout(timeoutId); }
@@ -690,9 +684,7 @@ function bootstrapUserDocs(user, nameOverride){
   const uid = user.uid;
   const now = firebase.firestore.FieldValue.serverTimestamp();
   const userRef = fdb.collection('users').doc(uid);
-  diagLog('FIRESTORE STEP E START (get users/{uid})', {uid});
   return userRef.get().then(function(snap){
-    diagLog('FIRESTORE STEP E SUCCESS (get users/{uid})', {exists: snap.exists});
     // Devolve sempre os dados efectivos do utilizador (existentes ou
     // recém-criados) — loadAuthState reutiliza este valor em vez de
     // voltar a ler users/{uid} logo a seguir (eram 2 leituras do mesmo
@@ -703,20 +695,21 @@ function bootstrapUserDocs(user, nameOverride){
       phone: user.phoneNumber || '', photoURL: user.photoURL || '',
       roles: ['CUSTOMER'], status: 'active', verificationStatus: 'UNVERIFIED',
       ipScore: 0, rating: 0,
-      // ROLE ≠ STATUS COMERCIAL: nasce sempre 'NONE'. Só passa a 'PENDING'
-      // pelo trigger de servidor onUserRolesChanged quando o utilizador
-      // ativar SELLER/SERVICE_PROVIDER/FREELANCER em "Gerir papéis".
+      // ROLE ≠ STATUS COMERCIAL: nasce sempre 'NONE'. "toggleSelfRole"
+      // solicita/desactiva o estatuto comercial escrevendo apenas os
+      // estados permitidos ao próprio utilizador (NONE→PENDING ao pedir,
+      // PENDING/ACTIVE→NONE ao cancelar/desactivar) quando o utilizador
+      // activa SELLER/SERVICE_PROVIDER/FREELANCER em "Gerir papéis"; a
+      // promoção para 'ACTIVE' continua dependente do processo
+      // administrativo/backend (Admin, via approveCommercialStatus).
       sellerStatus: 'NONE', serviceProviderStatus: 'NONE', freelancerStatus: 'NONE',
       createdAt: now, updatedAt: now
     };
-    diagLog('FIRESTORE STEP B START (set users/{uid})');
     return userRef.set(baseUser).then(function(){
-      diagLog('FIRESTORE STEP B SUCCESS (set users/{uid})');
-      diagLog('FIRESTORE STEP C START (set profiles/{uid})');
       return fdb.collection('profiles').doc(uid).set({
         uid, displayName: baseUser.name, photoURL: baseUser.photoURL, bio:'', location:'', specialties:[],
         verificationStatus:'UNVERIFIED', ipScore:0, rating:0, salesCount:0, createdAt: now, updatedAt: now
-      }).then(function(){ diagLog('FIRESTORE STEP C SUCCESS (set profiles/{uid})'); return baseUser; });
+      }).then(function(){ return baseUser; });
     });
   });
 }
@@ -727,17 +720,12 @@ function loadAuthState(user){
     renderTopbar(); buildNav(); render();
     return Promise.resolve();
   }
-  diagLog('SESSION STEP H0 START (bootstrapUserDocs dentro de loadAuthState)');
   return bootstrapUserDocs(user).then(function(userData){
-    diagLog('SESSION STEP H START (getIdTokenResult)');
-    diagLog('SESSION STEP F START (get profiles/{uid})');
-    diagLog('SESSION STEP G START (query verificationRequests PENDING)');
     return Promise.all([
-      user.getIdTokenResult().then(function(r){ diagLog('SESSION STEP H SUCCESS (getIdTokenResult)'); return r; }),
+      user.getIdTokenResult(),
       Promise.resolve(userData), // já lido/criado por bootstrapUserDocs — sem 2ª leitura de users/{uid}
-      fdb.collection('profiles').doc(user.uid).get().then(function(r){ diagLog('SESSION STEP F SUCCESS (get profiles/{uid})'); return r; }),
+      fdb.collection('profiles').doc(user.uid).get(),
       fdb.collection('verificationRequests').where('uid','==',user.uid).where('status','==','PENDING').limit(1).get()
-        .then(function(r){ diagLog('SESSION STEP G SUCCESS (query verificationRequests)'); return r; })
     ]);
   }).then(function(results){
     const tokenResult = results[0], userData = results[1], pSnap = results[2], vSnap = results[3];
@@ -767,7 +755,6 @@ function loadAuthState(user){
       const fixedName = user.displayName;
       AUTH.userDoc.name = fixedName; // corrige já o ecrã actual
       if(AUTH.profileDoc && !AUTH.profileDoc.displayName){ AUTH.profileDoc.displayName = fixedName; }
-      diagLog('SESSION STEP NAME-SYNC (users.name estava vazio, a sincronizar de Auth.displayName)');
       const nowSync = firebase.firestore.FieldValue.serverTimestamp();
       fdb.collection('users').doc(user.uid).update({ name: fixedName, updatedAt: nowSync })
         .catch(function(err){ console.error('Falha ao sincronizar nome (users):', err); });
@@ -775,14 +762,11 @@ function loadAuthState(user){
         .catch(function(err){ console.error('Falha ao sincronizar nome (profiles):', err); });
     }
 
-    diagLog('SESSION FLOW COMPLETE (loadAuthState)');
     renderTopbar(); buildNav(); render();
   });
 }
 fbAuth.onAuthStateChanged(function(user){
-  diagLog('onAuthStateChanged FIRED', {hasUser: !!user});
   loadAuthState(user).catch(function(err){
-    diagLog('SESSION FLOW FAILED (loadAuthState)', {code: err && err.code, message: err && err.message});
     console.error('Erro ao carregar estado de autenticação (detalhe completo):', err);
   });
 });
@@ -796,7 +780,6 @@ function renderTopbar(){
   const initials = (AUTH.userDoc && AUTH.userDoc.name ? AUTH.userDoc.name : (AUTH.user.email||'?')).trim().charAt(0).toUpperCase();
   el.innerHTML = `
     <div class="icon-btn" title="Notificações">${icon('bell')}<span class="dot-badge"></span></div>
-    <div class="icon-btn" title="Carrinho" onclick="go('comercio','carrinho')">${icon('cart')}</div>
     <div class="avatar" title="A tua conta" onclick="go('identidade','contas')">${initials}</div>`;
 }
 
@@ -1016,7 +999,8 @@ const ICONS = {
   tools: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94Z"/></svg>',
   briefcase: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>',
   bell: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>',
-  lock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>'
+  lock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>',
+  chat: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>'
 };
 function icon(name){ return ICONS[name] || ''; }
 
@@ -1026,24 +1010,30 @@ const NAV = {
     contas:'Contas', papeis:'Papéis', verificacao:'Verificação'
   }},
   marketplace:{ic:icon('store'),label:'Marketplace',subs:{
-    digital:'Digital', fisico:'Físico', servicos:'Serviços', freelancers:'Freelancers'
+    digital:'Digital', servicos:'Serviços', freelancers:'Freelancers'
   }},
   comercio:{ic:icon('cart'),label:'Comércio',subs:{
-    carrinho:'Carrinho', checkout:'Checkout', pedidos:'Pedidos', entregas:'Entregas'
+    pedidos:'Pedidos'
   }},
   financeiro:{ic:icon('wallet'),label:'Financeiro',subs:{
-    pagamentos:'Pagamentos', transacoes:'Transações', wallet:'Wallet', ledger:'Ledger', comissoes:'Comissões', saques:'Saques'
+    saques:'Saques'
   }},
   afiliados:{ic:icon('network'),label:'Afiliados',subs:{
     marketplace:'Marketplace de Ofertas', links:'Links', tracking:'Tracking', comissoes:'Comissões'
   }},
-  confianca:{ic:icon('shieldCheck'),label:'Confiança',subs:{
-    avaliacoes:'Avaliações', score:'IP Score', disputas:'Disputas'
-  }},
   administracao:{ic:icon('gear'),label:'Administração',subs:{
-    utilizadores:'Utilizadores', ofertas:'Ofertas', pedidos:'Pedidos', financeiro:'Financeiro', moderacao:'Moderação', analytics:'Analytics'
+    utilizadores:'Utilizadores', ofertas:'Ofertas', pedidos:'Pedidos', financeiro:'Financeiro'
   }}
 };
+/* ── Remoções da navegação V1 (auditoria — nenhuma delas tinha um
+   RENDERERS[...] real a substituir o mock inicial; ficam só como
+   entradas de menu removidas, o corpo mock destas chaves permanece
+   mais abaixo no ficheiro, sem uso, sinalizado no relatório final):
+   marketplace.fisico, comercio.{carrinho,checkout,entregas},
+   financeiro.{pagamentos,transacoes,wallet,ledger,comissoes},
+   confianca (secção inteira: avaliacoes/score/disputas),
+   administracao.{moderacao,analytics}. */
+
 
 let ST = {
   section: localStorage.getItem('ipd2_sec') || 'identidade',
@@ -1098,51 +1088,6 @@ function closeSidebarMobile(){
     document.getElementById('sbOverlay').classList.remove('open');
   }
 }
-/* ── MOCK DATA (só para Marketplace/Comércio/Financeiro/Afiliados/Confiança/
-   Administração — fora de escopo desta fase. Identidade usa dados reais acima.) ── */
-const MOCK = {
-  digital:[
-    {n:'Sistema WhatsApp Vendedor', t:'Ebook', p:3500, s:'Publicado'},
-    {n:'Clareamento Íntimo Natural', t:'Ebook', p:4500, s:'Publicado'},
-    {n:'Curso de Tráfego Pago AO', t:'Curso em Vídeo', p:12000, s:'Rascunho'}
-  ],
-  fisico:[
-    {n:'Powerbank 20000mAh', t:'Eletrónica', p:18500, s:'Em stock'},
-    {n:'Kit Skincare Facial', t:'Beleza', p:9200, s:'Em stock'}
-  ],
-  servicos:[
-    {n:'Criação de Landing Page', t:'Design', p:15000, s:'Publicado'},
-    {n:'Gestão de Tráfego Meta Ads', t:'Marketing', p:0, s:'Sob orçamento'}
-  ],
-  freelancers:[
-    {n:'Edição de vídeo para Reels', t:'Projecto aberto', p:8000, s:'3 propostas'},
-    {n:'Tradução PT↔EN, 20 páginas', t:'Projecto aberto', p:6000, s:'1 proposta'}
-  ],
-  pedidos:[
-    {id:'IP4F2A91', item:'Sistema WhatsApp Vendedor', v:3500, s:'Confirmado'},
-    {id:'IP7B0C22', item:'Kit Skincare Facial', v:9200, s:'A caminho'},
-    {id:'IP1D9E03', item:'Curso de Tráfego Pago AO', v:12000, s:'Pendente'}
-  ],
-  transacoes:[
-    {id:'TX-9021', tipo:'Venda', v:3500, s:'Concluída'},
-    {id:'TX-9022', tipo:'Comissão Afiliado', v:-2100, s:'Concluída'},
-    {id:'TX-9023', tipo:'Saque', v:-15000, s:'Pendente'}
-  ],
-  afiliadosOfertas:[
-    {n:'Sistema WhatsApp Vendedor', com:'60%', v:2100},
-    {n:'Curso de Tráfego Pago AO', com:'50%', v:6000},
-    {n:'Kit Skincare Facial', com:'15%', v:1380}
-  ],
-  disputas:[
-    {id:'DSP-014', motivo:'Produto não recebido', s:'Em análise'},
-  ],
-  utilizadores:[
-    {n:'Mário Domingos', papeis:['seller','affiliate'], s:'Activo'},
-    {n:'Fernanda M.', papeis:['customer'], s:'Activo'},
-    {n:'Carlos N.', papeis:['freelancer'], s:'Pendente verificação'}
-  ]
-};
-
 function fmt(n){ return new Intl.NumberFormat('pt-AO').format(n); }
 function fmtData(ts){
   if(!ts || typeof ts.toDate !== 'function') return '—';
@@ -1168,8 +1113,10 @@ function escHtml(s){ return String(s==null?'':s).replace(/[&<>"']/g, function(c)
    de A (mesmo badge, mesmo anel, mesma cor). Nunca spinner genérico,
    nunca emoji, nunca outro símbolo.
 
-   C) SKELETON — placeholders de conteúdo (não acções), sistema à
-      parte, preparado para o redesign, não usado ainda nesta fase.
+   C) SKELETON — placeholders de conteúdo (não acções). skeletonGrid()
+      é a variante em uso em todas as páginas V1 reais; showSkeleton/
+      hideSkeleton (mais abaixo) são a variante que actua directamente
+      sobre um container existente.
 
    Nenhuma operação Firebase desta fase deve inventar o próprio
    spinner — todas passam por aqui. Nunca usa setTimeout para fingir
@@ -1318,7 +1265,8 @@ function runWithLocalLoader(btnEl, processingText, action, opts){
     });
 }
 
-/* ── C) SKELETON (preparado, não usado ainda em nenhuma página real) ── */
+/* ── C) SKELETON — variante que actua directamente sobre um container já
+   existente no DOM (em vez de devolver HTML como skeletonGrid()). ── */
 function showSkeleton(containerEl, opts){
   if(!containerEl) return;
   opts = opts || {};
@@ -1349,9 +1297,6 @@ function verificationLabel(){
 function loginGate(msg){
   return `<div class="gate-card"><div class="gi">${icon('lock')}</div><div class="card-tit" style="font-size:15px;margin-bottom:8px">Precisas de sessão iniciada</div><div class="card-desc" style="margin-bottom:16px">${escHtml(msg)}</div><button class="btn bv" onclick="openAuth()">Entrar ou criar conta</button></div>`;
 }
-function mockNote(txt){
-  return `<div class="mock-note">🧪 <div><b>Protótipo estrutural</b> — ${txt} Sem Firebase, sem pagamentos reais, sem escrita de saldo. Serve para validar fluxo e arquitectura de informação.</div></div>`;
-}
 function crumb(sec,sub){ return `<div class="crumb">${NAV[sec].label} / ${NAV[sec].subs[sub]}</div>`; }
 function emptyState(icon,title,desc){
   return `<div class="empty"><div class="ei">${icon}</div><div class="tit" style="color:#fff;margin-bottom:6px;font-size:15px">${title}</div><p>${desc}</p></div>`;
@@ -1374,10 +1319,23 @@ function render(){
   // primeiro load. Só se grava a correcção definitiva no localStorage
   // depois de AUTH.ready confirmar que a conta NÃO é admin.
   const blockedAdminRoute = ST.section==='administracao' && !(AUTH.ready && AUTH.isAdmin===true);
-  const section = blockedAdminRoute ? 'identidade' : ST.section;
-  const sub = blockedAdminRoute ? 'contas' : ST.sub;
+  let section = blockedAdminRoute ? 'identidade' : ST.section;
+  let sub = blockedAdminRoute ? 'contas' : ST.sub;
   if(blockedAdminRoute && AUTH.ready){
     ST.section='identidade'; ST.sub='contas';
+    localStorage.setItem('ipd2_sec','identidade');
+    localStorage.setItem('ipd2_sub','contas');
+  }
+  // Rota inexistente na navegação actual (ex.: localStorage de uma sessão
+  // anterior ainda aponta para uma secção/sub removida nesta limpeza da
+  // V1, como 'financeiro:pagamentos' ou 'confianca:avaliacoes') — cai
+  // para Identidade em vez de tentar desenhar NAV[section].subs[sub]
+  // undefined. Mesma lógica de fallback que go() já aplicava aos cliques;
+  // aqui cobre também o carregamento inicial (ST vem directo do
+  // localStorage, sem passar por go()).
+  if(!NAV[section] || !NAV[section].subs[sub]){
+    section = 'identidade'; sub = 'contas';
+    ST.section = 'identidade'; ST.sub = 'contas';
     localStorage.setItem('ipd2_sec','identidade');
     localStorage.setItem('ipd2_sub','contas');
   }
@@ -1439,7 +1397,7 @@ const RENDERERS = {
     </div>
   </div>
   <button class="btn bo" style="margin-top:20px" onclick="logout(this)">Sair da conta</button>
-  ${mockNote('edição de foto e 2FA ainda não têm UI — os campos já existem em users/{uid} e podem ser escritos pelo dono via Firestore rules.')}`;
+  ${v1Note('edição de foto e 2FA ainda não têm UI — os campos já existem em users/{uid} e podem ser escritos pelo dono via Firestore rules.')}`;
 },
 
 'identidade:papeis': ()=>{
@@ -1537,72 +1495,16 @@ const RENDERERS = {
         `
     }
   </div>
-  ${mockNote('o envio efectivo dos ficheiros ainda depende de Firebase Storage (plano Blaze), ainda não activado — por agora, submeter regista só o pedido em verificationRequests (PENDING), exactamente como antes; a análise do documento em si terá de ser combinada com o admin por outro meio até o Storage estar pronto.')}`;
+  ${v1Note('o envio efectivo dos ficheiros ainda depende de Firebase Storage (plano Blaze), ainda não activado — por agora, submeter regista só o pedido em verificationRequests (PENDING), exactamente como antes; a análise do documento em si terá de ser combinada com o admin por outro meio até o Storage estar pronto.')}`;
 },
 
 /* ── MARKETPLACE ── */
-'marketplace:digital': ()=>renderOfferGrid('digital',icon('package'),'Produtos Digitais','ebooks, cursos, templates — entrega automática por link'),
-'marketplace:fisico': ()=>renderOfferGrid('fisico',icon('truck'),'Produtos Físicos','stock, envio e confirmação de entrega'),
-'marketplace:servicos': ()=>renderOfferGrid('servicos',icon('tools'),'Serviços','preço fixo ou sob orçamento, com briefing'),
-'marketplace:freelancers': ()=>`
-  <p class="page-sub">Projectos publicados por compradores/empresas. Freelancers submetem propostas.</p>
-  <div class="tab-row"><span class="tab-chip active">Abertos</span><span class="tab-chip">Em curso</span><span class="tab-chip">Concluídos</span></div>
-  <div class="grid">
-    ${MOCK.freelancers.map(f=>`
-      <div class="card">
-        <div class="card-ic">${icon('briefcase')}</div>
-        <div class="card-tit">${f.n}</div>
-        <div class="card-desc">${f.t}</div>
-        <div class="card-foot"><span>${f.p?fmt(f.p)+' Kz (orçamento base)':'Sem orçamento definido'}</span><span class="pill pill-p">${f.s}</span></div>
-      </div>`).join('')}
-  </div>
-  ${mockNote('submissão de proposta, chat e aceitação ficam neste ecrã.')}`,
+'marketplace:fisico': ()=>emptyState('🧩','Módulo ainda não implementado','A venda de produtos físicos (stock, envio, confirmação de entrega) está planeada mas ainda não tem lógica real ligada ao Firestore nesta versão.'),
 
 /* ── COMÉRCIO ── */
-'comercio:carrinho': ()=>`
-  <p class="page-sub">Itens de diferentes vendedores/tipos de oferta podem coexistir no mesmo carrinho.</p>
-  <div class="table-wrap"><table><thead><tr><th>Item</th><th>Tipo</th><th>Qtd</th><th>Preço</th><th></th></tr></thead><tbody>
-    <tr><td>Sistema WhatsApp Vendedor</td><td><span class="pill pill-v">Digital</span></td><td>1</td><td>3.500 Kz</td><td><button class="btn bo bsm">Remover</button></td></tr>
-    <tr><td>Powerbank 20000mAh</td><td><span class="pill pill-g">Físico</span></td><td>2</td><td>37.000 Kz</td><td><button class="btn bo bsm">Remover</button></td></tr>
-  </tbody></table></div>
-  <div style="display:flex;justify-content:flex-end;margin-top:18px;gap:14px;align-items:center">
-    <div style="text-align:right"><div style="font-size:11px;color:var(--g3lt)">Total</div><div style="font-family:'Satoshi';font-weight:700;font-size:22px;color:#fff">40.500 Kz</div></div>
-    <button class="btn bv" onclick="go('comercio','checkout')">Finalizar Compra →</button>
-  </div>
-  ${mockNote('o carrinho real precisa de reservar stock físico e não bloquear entrega digital.')}`,
-
-'comercio:checkout': ()=>`
-  <p class="page-sub">Um checkout único mesmo com itens de vendedores diferentes — split de pagamento acontece no financeiro, não aqui.</p>
-  <div class="grid" style="grid-template-columns:1.3fr 1fr">
-    <div class="card">
-      <div class="card-tit">Dados de entrega</div>
-      <div class="card-desc">Nome, telefone, email, morada (só se houver item físico no carrinho).</div>
-      <div class="card-tit" style="margin-top:16px">Método de pagamento</div>
-      <div style="display:flex;gap:8px;margin-top:8px"><span class="pill pill-v">Multicaixa Express</span><span class="pill pill-p">Transferência</span></div>
-    </div>
-    <div class="card">
-      <div class="card-tit">Resumo</div>
-      <div class="card-foot" style="margin-bottom:6px"><span>Subtotal</span><span>40.500 Kz</span></div>
-      <div class="card-foot" style="margin-bottom:6px"><span>Entrega</span><span>2.000 Kz</span></div>
-      <div class="card-foot" style="font-weight:700;color:#fff;border-top:1px solid var(--g1);padding-top:8px"><span>Total</span><span>42.500 Kz</span></div>
-      <button class="btn bv" style="width:100%;margin-top:14px" onclick="go('comercio','pedidos')">Confirmar Pedido</button>
-    </div>
-  </div>
-  ${mockNote('a confirmação real de pagamento tem de vir do gateway (server-side), não deste botão.')}`,
-
-'comercio:pedidos': ()=>`
-  <p class="page-sub">Histórico de pedidos, por papel de comprador.</p>
-  <div class="table-wrap"><table><thead><tr><th>Pedido</th><th>Item</th><th>Valor</th><th>Estado</th></tr></thead><tbody>
-    ${MOCK.pedidos.map(o=>`<tr><td><strong style="color:var(--vlt)">${o.id}</strong></td><td>${o.item}</td><td>${fmt(o.v)} Kz</td><td><span class="pill ${o.s==='Confirmado'?'pill-g':o.s==='Pendente'?'pill-v':'pill-p'}">${o.s}</span></td></tr>`).join('')}
-  </tbody></table></div>`,
-
-'comercio:entregas': ()=>`
-  <p class="page-sub">Estado de entrega — digital é automático (link), físico precisa de tracking.</p>
-  <div class="grid">
-    <div class="card"><div class="card-ic">⚡</div><div class="card-tit">Digital — Sistema WhatsApp Vendedor</div><div class="card-desc">Entregue por link automático após confirmação de pagamento.</div><span class="pill pill-g">Entregue</span></div>
-    <div class="card"><div class="card-ic">🚚</div><div class="card-tit">Físico — Powerbank 20000mAh</div><div class="card-desc">Enviado via estafeta parceiro, Luanda.</div><span class="pill pill-v">A caminho</span></div>
-  </div>
-  ${mockNote('integração com estafetas/tracking real fica fora desta fase.')}`,
+'comercio:carrinho': ()=>emptyState('🧩','Módulo ainda não implementado','A compra na IP Digital AO é directa por oferta — não existe carrinho multi-item nesta versão.'),
+'comercio:checkout': ()=>emptyState('🧩','Módulo ainda não implementado','O checkout real acontece a partir da página de cada oferta (botão Comprar), não a partir deste ecrã.'),
+'comercio:entregas': ()=>emptyState('🧩','Módulo ainda não implementado','O estado de entrega de cada compra já pode ser consultado em Comércio → Pedidos.'),
 
 /* ── FINANCEIRO ── */
 'financeiro:pagamentos': ()=>`
@@ -1611,158 +1513,20 @@ const RENDERERS = {
     <div class="card"><div class="card-ic">📱</div><div class="card-tit">Multicaixa Express</div><div class="card-desc">Pagamento com referência, confirmação via EMIS/agregador.</div><span class="pill pill-v">Activo</span></div>
     <div class="card"><div class="card-ic">🏦</div><div class="card-tit">Transferência Bancária</div><div class="card-desc">Confirmação manual com comprovativo.</div><span class="pill pill-v">Activo</span></div>
   </div>`,
-
-'financeiro:transacoes': ()=>`
-  <p class="page-sub">Todos os movimentos — vendas, comissões, saques. Cada linha é imutável (append-only).</p>
-  <div class="table-wrap"><table><thead><tr><th>ID</th><th>Tipo</th><th>Valor</th><th>Estado</th></tr></thead><tbody>
-    ${MOCK.transacoes.map(t=>`<tr><td>${t.id}</td><td>${t.tipo}</td><td style="color:${t.v<0?'var(--red)':'var(--vlt)'}">${t.v<0?'-':'+'}${fmt(Math.abs(t.v))} Kz</td><td><span class="pill ${t.s==='Concluída'?'pill-g':'pill-v'}">${t.s}</span></td></tr>`).join('')}
-  </tbody></table></div>`,
-
-'financeiro:wallet': ()=>`
-  <div class="stat-row">
-    <div class="stat-card"><div class="stat-lbl">Saldo disponível</div><div class="stat-val">18.400 <small>Kz</small></div></div>
-    <div class="stat-card"><div class="stat-lbl">A processar</div><div class="stat-val">2.100 <small>Kz</small></div></div>
-    <div class="stat-card"><div class="stat-lbl">Total já sacado</div><div class="stat-val">64.000 <small>Kz</small></div></div>
-  </div>
-  ${mockNote('estes números NUNCA podem ser escritos pelo cliente. Cloud Function + ledger são a única fonte de verdade.')}
-  <button class="btn bv" onclick="go('financeiro','saques')">Solicitar Saque →</button>`,
-
-'financeiro:ledger': ()=>`
-  <p class="page-sub">Livro-razão — cada crédito tem um débito correspondente. Nunca editável, só consultável.</p>
-  <div class="table-wrap"><table><thead><tr><th>Data</th><th>Descrição</th><th>Débito</th><th>Crédito</th></tr></thead><tbody>
-    <tr><td>02/09</td><td>Venda — Sistema WhatsApp Vendedor</td><td>—</td><td>3.500 Kz</td></tr>
-    <tr><td>02/09</td><td>Comissão afiliado (60%)</td><td>2.100 Kz</td><td>—</td></tr>
-    <tr><td>01/09</td><td>Saque aprovado</td><td>15.000 Kz</td><td>—</td></tr>
-  </tbody></table></div>`,
-
-'financeiro:comissoes': ()=>`
-  <p class="page-sub">Comissões devidas por venda, pendentes de pagamento ao vendedor/afiliado.</p>
-  <div class="table-wrap"><table><thead><tr><th>Oferta</th><th>% Comissão</th><th>Valor devido</th></tr></thead><tbody>
-    ${MOCK.afiliadosOfertas.map(a=>`<tr><td>${a.n}</td><td>${a.com}</td><td>${fmt(a.v)} Kz</td></tr>`).join('')}
-  </tbody></table></div>`,
-
-'financeiro:saques': ()=>`
-  <p class="page-sub">Pedido de saque — mínimo 1.000 Kz, requer verificação de Nível 3.</p>
-  <div class="card" style="max-width:380px">
-    <div class="card-tit">Novo pedido</div>
-    <div class="card-desc">Saldo disponível: 18.400 Kz</div>
-    <input placeholder="Valor a sacar (Kz)" style="width:100%;padding:12px;margin:10px 0;border-radius:10px;border:1.5px solid var(--g2);background:var(--off);color:#fff">
-    <button class="btn bv" style="width:100%">Solicitar Saque</button>
-  </div>
-  ${mockNote('aprovação fica no painel Admin → Financeiro, nunca automática sem revisão nesta fase.')}`,
-
-/* ── AFILIADOS ── */
-'afiliados:marketplace': ()=>`
-  <p class="page-sub">Ofertas disponíveis para promoção, com a comissão de cada uma.</p>
-  <div class="grid">
-    ${MOCK.afiliadosOfertas.map(a=>`
-      <div class="card">
-        <div class="card-ic">${icon('network')}</div>
-        <div class="card-tit">${a.n}</div>
-        <div class="card-desc">Comissão: ${a.com} · ${fmt(a.v)} Kz por venda</div>
-        <button class="btn bo bsm">Gerar link</button>
-      </div>`).join('')}
-  </div>`,
-
-'afiliados:links': ()=>`
-  <p class="page-sub">Os teus links activos, por oferta.</p>
-  <div class="table-wrap"><table><thead><tr><th>Oferta</th><th>Link</th><th></th></tr></thead><tbody>
-    <tr><td>Sistema WhatsApp Vendedor</td><td style="font-family:monospace;font-size:11.5px;color:var(--g3lt)">ipdigital.ao/p/whatsapp-vendedor?aff=mario123</td><td><button class="btn bo bsm">Copiar</button></td></tr>
-  </tbody></table></div>`,
-
-'afiliados:tracking': ()=>`
-  <div class="stat-row">
-    <div class="stat-card"><div class="stat-lbl">Cliques (30 dias)</div><div class="stat-val">312</div></div>
-    <div class="stat-card"><div class="stat-lbl">Conversões</div><div class="stat-val">14</div></div>
-    <div class="stat-card"><div class="stat-lbl">Taxa de conversão</div><div class="stat-val">4.5%</div></div>
-  </div>
-  ${mockNote('tracking real precisa de atribuição server-side (cookie/click-id), não só localStorage.')}`,
-
-'afiliados:comissoes': ()=>`
-  <div class="table-wrap"><table><thead><tr><th>Oferta</th><th>Vendas</th><th>Comissão devida</th></tr></thead><tbody>
-    ${MOCK.afiliadosOfertas.map(a=>`<tr><td>${a.n}</td><td>${Math.floor(a.v/1000)}</td><td>${fmt(a.v)} Kz</td></tr>`).join('')}
-  </tbody></table></div>`,
+'financeiro:transacoes': ()=>emptyState('🧩','Módulo ainda não implementado','O livro de vendas e comissões reais já está disponível em Financeiro → Minhas Vendas.'),
+'financeiro:wallet': ()=>emptyState('🧩','Módulo ainda não implementado','O saldo real disponível para saque já está em Financeiro → Saques.'),
+'financeiro:ledger': ()=>emptyState('🧩','Módulo ainda não implementado','Um livro-razão agregado fica para uma fase de negócio dedicada.'),
+'financeiro:comissoes': ()=>emptyState('🧩','Módulo ainda não implementado','As comissões reais de afiliado já estão disponíveis em Afiliados → Comissões.'),
 
 /* ── CONFIANÇA ── */
-'confianca:avaliacoes': ()=>`
-  <p class="page-sub">Avaliações só ficam visíveis após transação confirmada — evita reviews falsas.</p>
-  <div class="grid">
-    <div class="card"><div class="card-tit">★★★★★ Fernanda M.</div><div class="card-desc">"Entrega rápida, produto conforme descrito."</div><span class="pill pill-g">Compra verificada</span></div>
-    <div class="card"><div class="card-tit">★★★★☆ Carlos N.</div><div class="card-desc">"Bom serviço, comunicação podia ser mais rápida."</div><span class="pill pill-g">Compra verificada</span></div>
-  </div>`,
-
-'confianca:score': ()=>`
-  <p class="page-sub">IP Score — reputação agregada por papel (vendedor, afiliado, freelancer).</p>
-  <div class="stat-row">
-    <div class="stat-card"><div class="stat-lbl">IP Score (Vendedor)</div><div class="stat-val" style="color:var(--vlt)">92</div></div>
-    <div class="stat-card"><div class="stat-lbl">Taxa de conclusão</div><div class="stat-val">98%</div></div>
-    <div class="stat-card"><div class="stat-lbl">Tempo médio resposta</div><div class="stat-val">4h</div></div>
-  </div>
-  ${mockNote('fórmula do score, pesos e anti-fraude ficam para especificação de negócio dedicada.')}`,
-
-'confianca:disputas': ()=>`
-  <p class="page-sub">Disputas abertas entre comprador e vendedor/prestador.</p>
-  <div class="table-wrap"><table><thead><tr><th>ID</th><th>Motivo</th><th>Estado</th></tr></thead><tbody>
-    ${MOCK.disputas.map(d=>`<tr><td>${d.id}</td><td>${d.motivo}</td><td><span class="pill pill-v">${d.s}</span></td></tr>`).join('')}
-  </tbody></table></div>
-  ${mockNote('fluxo de mediação e reembolso parcial/total precisa de regra de negócio própria.')}`,
+'confianca:avaliacoes': ()=>emptyState('🧩','Módulo ainda não implementado','Avaliações pós-compra ficam para uma fase dedicada, com regras claras contra reviews falsas.'),
+'confianca:score': ()=>emptyState('🧩','Módulo ainda não implementado','A fórmula do IP Score, pesos e critérios anti-fraude ainda não têm especificação de negócio.'),
+'confianca:disputas': ()=>emptyState('🧩','Módulo ainda não implementado','O fluxo de mediação e reembolso ainda não tem regra de negócio definida.'),
 
 /* ── ADMINISTRAÇÃO ── */
-'administracao:utilizadores': ()=>`
-  <p class="page-sub">Só visível com papel Admin.</p>
-  <div class="table-wrap"><table><thead><tr><th>Nome</th><th>Papéis</th><th>Estado</th></tr></thead><tbody>
-    ${MOCK.utilizadores.map(u=>`<tr><td>${u.n}</td><td>${u.papeis.map(p=>`<span class="pill pill-p" style="margin-right:4px">${ROLE_LABELS[p]}</span>`).join('')}</td><td><span class="pill ${u.s==='Activo'?'pill-g':'pill-v'}">${u.s}</span></td></tr>`).join('')}
-  </tbody></table></div>`,
-
-'administracao:ofertas': ()=>`
-  <p class="page-sub">Moderação de ofertas antes de irem ao ar (produtos, serviços, projectos).</p>
-  <div class="table-wrap"><table><thead><tr><th>Oferta</th><th>Tipo</th><th>Estado</th><th></th></tr></thead><tbody>
-    <tr><td>Curso de Tráfego Pago AO</td><td>Digital</td><td><span class="pill pill-v">Aguarda aprovação</span></td><td><button class="btn bv bsm">Aprovar</button></td></tr>
-  </tbody></table></div>`,
-
-'administracao:pedidos': ()=>`
-  <div class="table-wrap"><table><thead><tr><th>Pedido</th><th>Item</th><th>Valor</th><th>Estado</th></tr></thead><tbody>
-    ${MOCK.pedidos.map(o=>`<tr><td>${o.id}</td><td>${o.item}</td><td>${fmt(o.v)} Kz</td><td><span class="pill ${o.s==='Confirmado'?'pill-g':'pill-v'}">${o.s}</span></td></tr>`).join('')}
-  </tbody></table></div>`,
-
-'administracao:financeiro': ()=>`
-  <div class="stat-row">
-    <div class="stat-card"><div class="stat-lbl">Receita total</div><div class="stat-val">1.2M <small>Kz</small></div></div>
-    <div class="stat-card"><div class="stat-lbl">Comissões devidas</div><div class="stat-val">84K <small>Kz</small></div></div>
-    <div class="stat-card"><div class="stat-lbl">Saques pendentes</div><div class="stat-val">3</div></div>
-  </div>
-  ${mockNote('painel financeiro admin real precisa de reconciliação com o gateway de pagamento.')}`,
-
-'administracao:moderacao': ()=>`
-  <div class="grid">
-    <div class="card"><div class="card-ic">🚩</div><div class="card-tit">Denúncia — produto duplicado</div><div class="card-desc">Reportado por 2 utilizadores</div><span class="pill pill-r">Por rever</span></div>
-  </div>`,
-
-'administracao:analytics': ()=>`
-  <div class="stat-row">
-    <div class="stat-card"><div class="stat-lbl">Utilizadores activos</div><div class="stat-val">1.240</div></div>
-    <div class="stat-card"><div class="stat-lbl">GMV (mês)</div><div class="stat-val">1.2M <small>Kz</small></div></div>
-    <div class="stat-card"><div class="stat-lbl">Taxa conversão</div><div class="stat-val">3.1%</div></div>
-    <div class="stat-card"><div class="stat-lbl">Novos vendedores</div><div class="stat-val">18</div></div>
-  </div>
-  ${mockNote('gráficos reais exigem eventos server-side agregados, não contagem no cliente.')}`
+'administracao:moderacao': ()=>emptyState('🧩','Módulo ainda não implementado','Denúncias e moderação de conteúdo ficam para uma fase dedicada.'),
+'administracao:analytics': ()=>emptyState('🧩','Módulo ainda não implementado','Métricas agregadas exigem eventos server-side — ainda não implementado nesta versão.')
 };
-
-function renderOfferGrid(key, icon, title, sub){
-  const items = MOCK[key];
-  return `<p class="page-sub">${sub}</p>
-  <div class="tab-row"><span class="tab-chip active">Todos</span><span class="tab-chip">Publicados</span><span class="tab-chip">Rascunhos</span></div>
-  <div class="grid">
-    ${items.map(o=>`
-      <div class="card">
-        <div class="card-ic">${icon}</div>
-        <div class="card-tit">${o.n}</div>
-        <div class="card-desc">${o.t}</div>
-        <div class="card-foot"><span>${o.p?fmt(o.p)+' Kz':'Sob consulta'}</span><span class="pill ${o.s==='Publicado'||o.s==='Em stock'?'pill-g':'pill-v'}">${o.s}</span></div>
-      </div>`).join('')}
-  </div>
-  ${mockNote('CRUD real de ofertas, upload de imagens e workflow de aprovação ficam neste ecrã.')}`;
-}
 
 /* ══════════════════════════════════════════════════════════════
    V1 OPERACIONAL — PRODUTOS DIGITAIS (dados reais em Firestore)
@@ -1790,9 +1554,9 @@ function heroSection(){
 function categoriasSection(){
   const cats = [
     {label:'Digital', desc:'Disponível agora', cls:'active'},
-    {label:'Físico', desc:'Brevemente', cls:'soon'},
-    {label:'Serviços', desc:'Brevemente', cls:'soon'},
-    {label:'Freelancers', desc:'Brevemente', cls:'soon'}
+    {label:'Serviços', desc:'Disponível agora', cls:'active'},
+    {label:'Freelancers', desc:'Disponível agora', cls:'active'},
+    {label:'Físico', desc:'Ainda não disponível', cls:'soon'}
   ];
   return `<div class="mkt-cats">
     ${cats.map(function(c){ return `<div class="mkt-cat ${c.cls}">${escHtml(c.label)}<span>${escHtml(c.desc)}</span></div>`; }).join('')}
@@ -1861,8 +1625,12 @@ function isSellerApproved(){
   const u = AUTH.userDoc;
   return !!(u && Array.isArray(u.roles) && u.roles.indexOf('SELLER')!==-1 && u.sellerStatus==='ACTIVE');
 }
+function isServiceProviderApproved(){
+  const u = AUTH.userDoc;
+  return !!(u && Array.isArray(u.roles) && u.roles.indexOf('SERVICE_PROVIDER')!==-1 && u.serviceProviderStatus==='ACTIVE');
+}
 function v1Note(txt){
-  return `<div class="mock-note">ℹ️ <div><b>V1 real</b> — ${txt}</div></div>`;
+  return `<div class="v1-note">ℹ️ <div><b>V1 real</b> — ${txt}</div></div>`;
 }
 function skeletonGrid(){
   return `<div class="grid">${'<div class="skel-card"><div class="skel skel-line w-60"></div><div class="skel skel-line w-80"></div><div class="skel skel-line w-40"></div></div>'.repeat(3)}</div>`;
@@ -1896,6 +1664,7 @@ NAV.comercio.subs.ofertas = 'Minhas Ofertas';
 NAV.marketplace.subs.digital = 'Digital';
 NAV.marketplace.subs._detalhe = 'Detalhe da oferta';
 NAV.financeiro.subs.vendas = 'Minhas Vendas';
+NAV.chat = { ic: icon('chat'), label:'Chat', subs:{ conversas:'Conversas', _conversa:'Conversa' } };
 
 /* ══════ MARKETPLACE › DIGITAL (real) ══════ */
 /* ══════ MARKETPLACE › DIGITAL — pesquisa/filtros/ordenação locais ══════
@@ -1916,6 +1685,11 @@ function marketFiltrarOrdenar(ofertas){
   const min = parseFloat(V1_marketFiltro.precoMin);
   const max = parseFloat(V1_marketFiltro.precoMax);
   let out = ofertas.filter(function(o){
+    // Ofertas de serviço (tipo==='servico') têm a sua própria página em
+    // Marketplace → Serviços — não duplicam aqui. Ofertas sem "tipo"
+    // (todas as existentes até agora) continuam a aparecer tal como
+    // sempre apareceram — filtro é um no-op para dados antigos.
+    if(o.tipo === 'servico') return false;
     if(termo){
       const alvo = ((o.titulo||'') + ' ' + (o.descricao||'')).toLowerCase();
       if(alvo.indexOf(termo) === -1) return false;
@@ -2067,6 +1841,10 @@ let V1_novaOfertaImagemPreview = null;    // object URL local, só para pré-vis
 let V1_ofertaEmEdicaoId = null;           // id da oferta actualmente aberta em edição (RASCUNHO/REJEITADA)
 let V1_edicaoImagemFile = null;
 let V1_edicaoImagemPreview = null;
+let V1_novoServicoImagemFile = null;      // mesma lógica de V1_novaOfertaImagemFile, para o formulário de Serviços
+let V1_novoServicoImagemPreview = null;
+let V1_servicosTab = 'disponiveis';   // 'disponiveis' | 'publicar' | 'meusServicos' | 'pedidosRecebidos'
+let V1_pedidoRecebidoEntregaAbertoId = null; // id do pedido de serviço com o painel "Marcar como entregue" aberto (prestador)
 
 function toggleNovaOferta(){
   V1_novaOfertaOpen = !V1_novaOfertaOpen;
@@ -2079,7 +1857,7 @@ function toggleNovaOferta(){
    uploadImagemOferta / STORAGE_UPLOAD_ENABLED. */
 function onImagemOfertaSelecionada(inputEl, alvo){
   const file = inputEl.files && inputEl.files[0];
-  const errId = alvo === 'nova' ? 'novaOfertaImagemErr' : 'edicaoImagemErr';
+  const errId = alvo === 'nova' ? 'novaOfertaImagemErr' : (alvo === 'servico' ? 'novoServicoImagemErr' : 'edicaoImagemErr');
   const errEl = document.getElementById(errId);
   if(errEl) errEl.textContent = '';
   if(!file) return;
@@ -2088,6 +1866,9 @@ function onImagemOfertaSelecionada(inputEl, alvo){
     if(alvo === 'nova'){
       V1_novaOfertaImagemFile = compressed;
       V1_novaOfertaImagemPreview = previewUrl;
+    } else if(alvo === 'servico'){
+      V1_novoServicoImagemFile = compressed;
+      V1_novoServicoImagemPreview = previewUrl;
     } else {
       V1_edicaoImagemFile = compressed;
       V1_edicaoImagemPreview = previewUrl;
@@ -2099,8 +1880,8 @@ function onImagemOfertaSelecionada(inputEl, alvo){
 }
 
 function imagemOfertaFormHtml(alvo, previewUrl){
-  const inputId = alvo === 'nova' ? 'novaOfertaImagemInput' : 'edicaoImagemInput';
-  const errId = alvo === 'nova' ? 'novaOfertaImagemErr' : 'edicaoImagemErr';
+  const inputId = alvo === 'nova' ? 'novaOfertaImagemInput' : (alvo === 'servico' ? 'novoServicoImagemInput' : 'edicaoImagemInput');
+  const errId = alvo === 'nova' ? 'novaOfertaImagemErr' : (alvo === 'servico' ? 'novoServicoImagemErr' : 'edicaoImagemErr');
   return `<label class="card-desc" style="display:block;margin-top:10px;margin-bottom:4px">Imagem do produto (opcional)</label>
     <input type="file" accept="image/jpeg,image/png,image/webp" id="${inputId}" onchange="onImagemOfertaSelecionada(this,'${alvo}')">
     <div class="auth-err" id="${errId}"></div>
@@ -2141,6 +1922,42 @@ function criarOferta(btnEl){
   })
   .catch(function(){});
 }
+
+/* Igual a criarOferta(), só troca o alvo da imagem e acrescenta
+   tipo:'servico' — mesma colecção "ofertas", mesmo workflow de
+   aprovação (RASCUNHO→AGUARDA_APROVACAO→PUBLICADA), mesmas funções de
+   edição/submissão (toggleEditarOferta/guardarEdicaoOferta/
+   submeterOfertaParaAprovacao, todas inalteradas — já são genéricas
+   por id de oferta). */
+function criarOfertaServico(btnEl){
+  const titulo = (document.getElementById('novoServicoTitulo').value||'').trim();
+  const descricao = (document.getElementById('novoServicoDesc').value||'').trim();
+  const preco = parseFloat(document.getElementById('novoServicoPreco').value);
+  const errEl = document.getElementById('novoServicoErr');
+  errEl.textContent = '';
+  if(!titulo){ errEl.textContent = 'Indica um título.'; return; }
+  if(!preco || preco<=0){ errEl.textContent = 'Indica um preço válido (maior que 0).'; return; }
+  const now = firebase.firestore.FieldValue.serverTimestamp();
+  const imagemFile = V1_novoServicoImagemFile;
+  runWithLocalLoader(btnEl, 'A guardar serviço…', function(){
+    return fdb.collection('ofertas').add({
+      vendedorId: AUTH.uid, titulo, descricao, preco, moeda: 'AOA', tipo: 'servico',
+      estado: 'RASCUNHO', criadoEm: now, atualizadoEm: now
+    }).then(function(ref){
+      if(!imagemFile) return ref;
+      return uploadImagemOferta(ref.id, imagemFile)
+        .then(function(url){ return ref.update({ imagemUrl: url }); })
+        .catch(function(){ /* upload bloqueado/indisponível nesta fase: oferta fica criada sem imagem */ })
+        .then(function(){ return ref; });
+    });
+  }, { successText:'Serviço criado' })
+  .then(function(){
+    V1_novoServicoImagemFile = null; V1_novoServicoImagemPreview = null;
+    v1Invalidate('minhasOfertasServico'); v1Invalidate('ofertasPublicadas');
+    V1_servicosTab = 'meusServicos'; render();
+  })
+  .catch(function(){});
+} 
 
 /* Abre/fecha o formulário de edição para uma oferta em RASCUNHO ou
    REJEITADA. Antes desta função não havia forma de corrigir o
@@ -2244,6 +2061,144 @@ RENDERERS['comercio:ofertas'] = function(){
       </div>`;
     }).join('')}
   </div>`}`;
+};
+
+/* ══════ MARKETPLACE › SERVIÇOS + PRESTADOR DE SERVIÇOS V1 ══════
+   Reaproveita por inteiro "ofertas"/"pedidos" — não cria nenhuma
+   colecção nova. A única diferença de esquema é o par tipo/tipoSnapshot
+   (opcional, omisso = digital) já adicionado a criarOfertaServico() e
+   confirmarCheckout(). Compra/checkout/pagamento/entrega Admin/
+   financeiro/afiliados continuam a ser exactamente os mesmos de sempre
+   — só a operação do prestador sobre o PRÓPRIO pedido (iniciar
+   execução, briefing, entregar) é nova, ver funções mais acima. */
+function irParaTabServicos(tab){ V1_servicosTab = tab; render(); }
+function toggleEntregaServicoPainel(pid){
+  V1_pedidoRecebidoEntregaAbertoId = (V1_pedidoRecebidoEntregaAbertoId===pid) ? null : pid;
+  render();
+}
+
+RENDERERS['marketplace:servicos'] = function(){
+  const tabs = [['disponiveis','Serviços disponíveis'],['publicar','Publicar serviço'],['meusServicos','Meus serviços'],['pedidosRecebidos','Pedidos recebidos']];
+  const tabRow = `<div class="tab-row">${tabs.map(function(t){ return `<span class="tab-chip ${V1_servicosTab===t[0]?'active':''}" onclick="irParaTabServicos('${t[0]}')">${t[1]}</span>`; }).join('')}</div>`;
+
+  if(V1_servicosTab === 'publicar'){
+    if(!AUTH.uid) return tabRow + loginGate('Entra para publicares um serviço.');
+    if(!isServiceProviderApproved()){
+      return tabRow + `<div class="gate-card"><div class="gi">${icon('tools')}</div>
+        <div class="card-tit" style="font-size:15px;margin-bottom:8px">Precisas de ser Prestador de Serviços aprovado</div>
+        <div class="card-desc" style="margin-bottom:16px">Activa o papel Prestador de Serviços em Identidade → Papéis e aguarda aprovação de um Admin antes de publicares serviços.</div>
+        <button class="btn bo" onclick="go('identidade','papeis')">Gerir papéis</button></div>`;
+    }
+    return tabRow + `<div class="card" style="max-width:420px">
+      <div class="card-tit">Publicar serviço</div>
+      <input class="auth-input" id="novoServicoTitulo" placeholder="Título do serviço">
+      <textarea class="auth-input" id="novoServicoDesc" placeholder="Descrição — o que inclui, como funciona" rows="4"></textarea>
+      <input class="auth-input" id="novoServicoPreco" type="number" min="1" placeholder="Preço em Kz">
+      ${imagemOfertaFormHtml('servico', V1_novoServicoImagemPreview)}
+      <div class="auth-err" id="novoServicoErr"></div>
+      <button class="btn bv bsm" style="margin-top:10px" onclick="criarOfertaServico(this)">Guardar rascunho</button>
+    </div>`;
+  }
+
+  if(V1_servicosTab === 'meusServicos'){
+    if(!AUTH.uid) return tabRow + loginGate('Entra para geriras os teus serviços.');
+    if(!isServiceProviderApproved()){
+      return tabRow + `<div class="gate-card"><div class="gi">${icon('tools')}</div>
+        <div class="card-tit" style="font-size:15px;margin-bottom:8px">Precisas de ser Prestador de Serviços aprovado</div>
+        <div class="card-desc" style="margin-bottom:16px">Activa o papel Prestador de Serviços em Identidade → Papéis e aguarda aprovação de um Admin.</div>
+        <button class="btn bo" onclick="go('identidade','papeis')">Gerir papéis</button></div>`;
+    }
+    const key = 'minhasOfertasServico';
+    if(V1.cache[key]===undefined){
+      v1Fetch(key, function(){ return fdb.collection('ofertas').where('vendedorId','==',AUTH.uid).orderBy('criadoEm','desc').get(); });
+      return tabRow + skeletonGrid();
+    }
+    const ofertas = (V1.cache[key]||[]).filter(function(o){ return o.tipo==='servico'; });
+    const estadoLabel = {RASCUNHO:'Rascunho', AGUARDA_APROVACAO:'Aguarda aprovação', PUBLICADA:'Publicada', REJEITADA:'Rejeitada', SUSPENSA:'Suspensa'};
+    const estadoPill = {RASCUNHO:'pill-n', AGUARDA_APROVACAO:'pill-v', PUBLICADA:'pill-g', REJEITADA:'pill-r', SUSPENSA:'pill-r'};
+    return tabRow + (!ofertas.length ? emptyState('🛠️','Ainda não tens serviços','Cria o teu primeiro serviço em "Publicar serviço".') : `
+    <div class="grid">
+      ${ofertas.map(function(o){
+        const emEdicao = V1_ofertaEmEdicaoId === o.id;
+        const podeEditar = (o.estado==='RASCUNHO' || o.estado==='REJEITADA');
+        return `<div class="card">
+          ${o.imagemUrl ? `<img src="${escHtml(o.imagemUrl)}" alt="${escHtml(o.titulo)}" style="width:100%;max-height:140px;object-fit:cover;border-radius:8px;margin-bottom:10px">` : ''}
+          <div class="card-tit">${escHtml(o.titulo)}</div>
+          <div class="card-desc">${escHtml(o.descricao||'')}</div>
+          <div class="card-foot"><span>${fmt(o.preco)} Kz</span><span class="pill ${estadoPill[o.estado]||'pill-n'}">${estadoLabel[o.estado]||o.estado}</span></div>
+          ${o.estado==='REJEITADA' ? `<div class="card-desc" style="color:var(--red);margin-top:6px">Este serviço foi rejeitado. Revê o conteúdo antes de submeter de novo.</div>` : ''}
+          ${podeEditar ? `<div style="display:flex;gap:8px;margin-top:10px">
+            <button class="btn bo bsm" style="flex:1" onclick="toggleEditarOferta('${o.id}')">${emEdicao ? 'Fechar edição' : 'Editar'}</button>
+            <button class="btn bv bsm" style="flex:1" onclick="submeterOfertaParaAprovacao('${o.id}', this)">Submeter para aprovação</button>
+          </div>` : ''}
+          ${emEdicao ? `<div class="card" style="margin-top:12px;background:var(--card2)">
+            <input class="auth-input" id="edicaoTitulo" value="${escHtml(o.titulo)}" placeholder="Título do serviço">
+            <textarea class="auth-input" id="edicaoDesc" placeholder="Descrição" rows="3">${escHtml(o.descricao||'')}</textarea>
+            <input class="auth-input" id="edicaoPreco" type="number" min="1" value="${o.preco}" placeholder="Preço em Kz">
+            ${imagemOfertaFormHtml('edicao', V1_edicaoImagemPreview)}
+            <div class="auth-err" id="edicaoErr"></div>
+            <button class="btn bv bsm" style="margin-top:10px" onclick="guardarEdicaoOferta('${o.id}', this)">Guardar alterações</button>
+          </div>` : ''}
+        </div>`;
+      }).join('')}
+    </div>`);
+  }
+
+  if(V1_servicosTab === 'pedidosRecebidos'){
+    if(!AUTH.uid) return tabRow + loginGate('Entra para veres os pedidos recebidos.');
+    if(!isServiceProviderApproved()){
+      return tabRow + `<div class="gate-card"><div class="gi">${icon('tools')}</div>
+        <div class="card-tit" style="font-size:15px;margin-bottom:8px">Precisas de ser Prestador de Serviços aprovado</div>
+        <div class="card-desc" style="margin-bottom:16px">Activa o papel Prestador de Serviços em Identidade → Papéis e aguarda aprovação de um Admin.</div>
+        <button class="btn bo" onclick="go('identidade','papeis')">Gerir papéis</button></div>`;
+    }
+    const key = 'pedidosRecebidosPrestador';
+    if(V1.cache[key]===undefined){
+      v1Fetch(key, function(){ return fdb.collection('pedidos').where('vendedorId','==',AUTH.uid).orderBy('criadoEm','desc').get(); });
+      return tabRow + skeletonGrid();
+    }
+    const pedidos = (V1.cache[key]||[]).filter(function(p){ return p.tipoSnapshot==='servico'; });
+    const estadoLabel = {CRIADO:'Criado', AGUARDA_PAGAMENTO:'Aguarda pagamento', PAGAMENTO_ENVIADO:'Comprovativo enviado', PAGO:'Pago — pode iniciar', EM_EXECUCAO:'Em execução', ENTREGUE:'Entregue', FALHOU:'Falhou', CANCELADO:'Cancelado'};
+    if(!pedidos.length) return tabRow + emptyState('🧾','Ainda sem pedidos recebidos','Quando alguém comprar um dos teus serviços, aparece aqui.');
+    return tabRow + `<div class="grid">${pedidos.map(function(p){
+      const okState = p.estado==='ENTREGUE'||p.estado==='PAGO'||p.estado==='EM_EXECUCAO';
+      const badState = p.estado==='FALHOU'||p.estado==='CANCELADO';
+      const entregaAberta = V1_pedidoRecebidoEntregaAbertoId===p.id;
+      return `<div class="card">
+        <div class="card-tit">${escHtml(p.tituloSnapshot)}</div>
+        <div class="card-foot"><span>${fmt(p.valor)} ${escHtml(p.moeda)}</span><span class="pill ${okState?'pill-g':badState?'pill-r':'pill-v'}">${estadoLabel[p.estado]||p.estado}</span></div>
+        <div class="card-desc" style="font-family:monospace;font-size:11px;margin-top:6px">Cliente: ${escHtml(p.compradorId)}</div>
+        ${p.briefing ? `<div class="card-desc" style="margin-top:8px;white-space:pre-wrap"><b>Briefing do cliente:</b><br>${escHtml(p.briefing)}</div>` : (p.estado==='PAGO'||p.estado==='EM_EXECUCAO' ? `<div class="card-desc" style="margin-top:8px">Ainda sem briefing do cliente.</div>` : '')}
+        ${p.estado==='PAGO' ? `<button class="btn bv bsm" style="margin-top:10px;width:100%" onclick="prestadorIniciarExecucao('${p.id}', this)">Iniciar execução</button>` : ''}
+        ${p.estado==='EM_EXECUCAO' ? `<button class="btn bv bsm" style="margin-top:10px;width:100%" onclick="toggleEntregaServicoPainel('${p.id}')">${entregaAberta?'Fechar':'Marcar como entregue'}</button>` : ''}
+        ${(p.estado==='EM_EXECUCAO' && entregaAberta) ? `<div class="card" style="margin-top:12px;background:var(--card2)">
+          <textarea id="entregaServicoTexto_${p.id}" rows="4" style="width:100%;padding:9px;border-radius:8px;border:1px solid var(--g1);box-sizing:border-box;resize:vertical" placeholder="Descreve o resultado do serviço (texto, link, instruções finais)..."></textarea>
+          <div class="auth-err" id="entregaServicoErr_${p.id}" style="margin-top:6px"></div>
+          <button class="btn bv bsm" style="margin-top:10px" onclick="prestadorEntregarServico('${p.id}', this)">Confirmar entrega</button>
+        </div>` : ''}
+        ${p.estado==='ENTREGUE' && p.linkEntregue ? `<div class="card-desc" style="margin-top:8px;white-space:pre-wrap"><b>Entregue:</b><br>${escHtml(p.linkEntregue)}</div>` : ''}
+        ${p.estado!=='CANCELADO' ? `<button class="btn bo bsm" style="margin-top:10px;width:100%" onclick="abrirOuCriarConversa('CLIENTE_SERVICO','${p.id}',['${p.compradorId}','${p.vendedorId}'], this)">Chat com o cliente</button>` : ''}
+      </div>`;
+    }).join('')}</div>`;
+  }
+
+  // V1_servicosTab === 'disponiveis'
+  const key = 'ofertasPublicadas'; // MESMA cache que o Marketplace Digital já usa — zero leituras extra
+  if(V1.cache[key]===undefined){
+    v1Fetch(key, function(){ return fdb.collection('ofertas').where('estado','==','PUBLICADA').orderBy('criadoEm','desc').limit(60).get(); });
+    return tabRow + skeletonGrid();
+  }
+  const servicos = (V1.cache[key]||[]).filter(function(o){ return o.tipo==='servico'; });
+  if(!servicos.length) return tabRow + emptyState('🛠️','Ainda sem serviços publicados','Quando um prestador aprovado publicar um serviço e um Admin aprovar, aparece aqui.');
+  return tabRow + `<div class="grid">${servicos.map(function(o){
+    return `<div class="card">
+      ${o.imagemUrl ? `<img src="${escHtml(o.imagemUrl)}" alt="${escHtml(o.titulo)}" style="width:100%;max-height:140px;object-fit:cover;border-radius:8px;margin-bottom:10px">` : ''}
+      <div class="card-tit">${escHtml(o.titulo)}</div>
+      <div class="card-desc">${escHtml(o.descricao||'')}</div>
+      <div class="card-foot"><span>${fmt(o.preco)} ${escHtml(o.moeda||'Kz')}</span></div>
+      <button class="btn bv bsm" style="margin-top:10px;width:100%" onclick="abrirCheckout('${o.id}')">Comprar</button>
+    </div>`;
+  }).join('')}</div>`;
 };
 
 /* ══════ CHECKOUT (oferta PUBLICADA → pedido) ══════
@@ -2358,8 +2313,9 @@ function confirmarCheckout(btnEl){
         tx.set(pedidoRef, {
           compradorId: AUTH.uid, vendedorId: o.vendedorId, ofertaId: ofertaId,
           tituloSnapshot: o.titulo, valor: o.preco, moeda: o.moeda||'AOA',
+          tipoSnapshot: o.tipo || 'digital',
           estado: 'CRIADO', pagamento: null, linkEntregue: null,
-          afiliadoId: afiliadoId,
+          afiliadoId: afiliadoId, briefing: null,
           criadoEm: now, atualizadoEm: now
         });
       });
@@ -2393,6 +2349,7 @@ Titular: IP Digital AO
 Depois de pagares, preenche os dados abaixo (nome do titular e referência da transferência/pagamento são obrigatórios) para o Admin confirmar.`;
 
 let V1_pedidoPagamentoAbertoId = null; // id do pedido com o painel de pagamento aberto
+let V1_pedidoBriefingAbertoId = null;  // id do pedido de serviço com o painel de briefing aberto
 
 function togglePainelPagamento(pid){
   V1_pedidoPagamentoAbertoId = (V1_pedidoPagamentoAbertoId===pid) ? null : pid;
@@ -2459,6 +2416,76 @@ function enviarComprovativo(pid, btnEl){
   .catch(function(){});
 }
 
+/* ══════ SERVIÇOS — BRIEFING (dentro do próprio pedido, sem colecção nova) ══════
+   "briefing" é só mais um campo em pedidos/{id} — texto livre que o
+   comprador escreve e o prestador lê no mesmo documento. Só faz
+   sentido (e só fica editável) enquanto o pedido está PAGO ou
+   EM_EXECUCAO; nunca depois de ENTREGUE. */
+function toggleBriefingPainel(pid){
+  V1_pedidoBriefingAbertoId = (V1_pedidoBriefingAbertoId===pid) ? null : pid;
+  render();
+}
+function enviarBriefing(pid, btnEl){
+  const texto = (document.getElementById('briefingTexto_'+pid).value || '').trim();
+  const errEl = document.getElementById('briefingErr_'+pid);
+  if(errEl) errEl.textContent = '';
+  const pedidoRef = fdb.collection('pedidos').doc(pid);
+  runWithLocalLoader(btnEl, 'A guardar briefing…', function(){
+    return pedidoRef.get().then(function(snap){
+      if(!snap.exists) throw new Error('Este pedido já não existe.');
+      const p = snap.data();
+      if(p.compradorId !== AUTH.uid) throw new Error('Este pedido não pertence à tua conta.');
+      if(p.estado !== 'PAGO' && p.estado !== 'EM_EXECUCAO') throw new Error('Só podes enviar briefing enquanto o serviço está Pago ou Em execução.');
+      return pedidoRef.update({ briefing: texto, atualizadoEm: firebase.firestore.FieldValue.serverTimestamp() });
+    });
+  }, { successText:'Briefing guardado' })
+  .then(function(){ V1_pedidoBriefingAbertoId = null; v1Invalidate('meusPedidos'); v1Invalidate('pedidosRecebidosPrestador'); render(); })
+  .catch(function(){});
+}
+
+/* ══════ SERVIÇOS — PRESTADOR opera o próprio pedido ══════
+   Reaproveita "pedidos"/"estado" já existentes, só acrescenta o valor
+   EM_EXECUCAO ao vocabulário de estados (PAGO→EM_EXECUCAO→ENTREGUE),
+   equivalente ao "Aguardando início/briefing → EM CURSO → ENTREGUE"
+   pedido na missão — sem introduzir CONCLUÍDO como estado à parte:
+   ENTREGUE já é o estado terminal de sucesso usado em todo o resto do
+   pedidos, reaproveitado aqui com o mesmo significado (o cliente já
+   tem o resultado do serviço). A entrega, para serviço, é texto/nota
+   de conclusão — guardada no MESMO campo "linkEntregue" que o produto
+   digital já usa para o link (campo genérico, sem novo nome). */
+function prestadorIniciarExecucao(pid, btnEl){
+  const pedidoRef = fdb.collection('pedidos').doc(pid);
+  runWithLocalLoader(btnEl, 'A iniciar…', function(){
+    return pedidoRef.get().then(function(snap){
+      if(!snap.exists) throw new Error('Este pedido já não existe.');
+      const p = snap.data();
+      if(p.vendedorId !== AUTH.uid) throw new Error('Este pedido não é teu.');
+      if(p.estado !== 'PAGO') throw new Error('Só podes iniciar a partir de Pago.');
+      return pedidoRef.update({ estado:'EM_EXECUCAO', atualizadoEm: firebase.firestore.FieldValue.serverTimestamp() });
+    });
+  }, { successText:'Execução iniciada' })
+  .then(function(){ v1Invalidate('pedidosRecebidosPrestador'); render(); })
+  .catch(function(){});
+}
+function prestadorEntregarServico(pid, btnEl){
+  const nota = (document.getElementById('entregaServicoTexto_'+pid).value || '').trim();
+  const errEl = document.getElementById('entregaServicoErr_'+pid);
+  if(errEl) errEl.textContent = '';
+  if(!nota){ if(errEl) errEl.textContent = 'Descreve o resultado/entrega do serviço.'; return; }
+  const pedidoRef = fdb.collection('pedidos').doc(pid);
+  runWithLocalLoader(btnEl, 'A entregar…', function(){
+    return pedidoRef.get().then(function(snap){
+      if(!snap.exists) throw new Error('Este pedido já não existe.');
+      const p = snap.data();
+      if(p.vendedorId !== AUTH.uid) throw new Error('Este pedido não é teu.');
+      if(p.estado !== 'EM_EXECUCAO') throw new Error('Só podes entregar a partir de Em execução.');
+      return pedidoRef.update({ estado:'ENTREGUE', linkEntregue: nota, atualizadoEm: firebase.firestore.FieldValue.serverTimestamp() });
+    });
+  }, { successText:'Serviço entregue' })
+  .then(function(){ v1Invalidate('pedidosRecebidosPrestador'); render(); })
+  .catch(function(){});
+}
+
 /* ══════ COMÉRCIO › PEDIDOS (comprador) ══════ */
 RENDERERS['comercio:pedidos'] = function(){
   if(!AUTH.uid) return loginGate('Entra para veres os teus pedidos.');
@@ -2468,27 +2495,39 @@ RENDERERS['comercio:pedidos'] = function(){
     return skeletonGrid();
   }
   const pedidos = V1.cache[key];
-  const estadoLabel = {CRIADO:'Criado', AGUARDA_PAGAMENTO:'Aguarda pagamento', PAGAMENTO_ENVIADO:'Comprovativo enviado — aguarda Admin', PAGO:'Pago', ENTREGUE:'Entregue', FALHOU:'Falhou', CANCELADO:'Cancelado'};
+  const estadoLabel = {CRIADO:'Criado', AGUARDA_PAGAMENTO:'Aguarda pagamento', PAGAMENTO_ENVIADO:'Comprovativo enviado — aguarda Admin', PAGO:'Pago', EM_EXECUCAO:'Em execução', ENTREGUE:'Entregue', FALHOU:'Falhou', CANCELADO:'Cancelado'};
   if(!pedidos.length) return emptyState('🧾','Ainda não tens pedidos','Compra um produto em Marketplace → Digital.');
   return `<div class="table-wrap"><table><thead><tr><th>Produto</th><th>Valor</th><th>Data</th><th>Estado</th><th>Entrega</th><th>Acção</th></tr></thead><tbody>
   ${pedidos.map(function(p){
-    const okState = p.estado==='ENTREGUE'||p.estado==='PAGO';
+    const okState = p.estado==='ENTREGUE'||p.estado==='PAGO'||p.estado==='EM_EXECUCAO';
     const badState = p.estado==='FALHOU'||p.estado==='CANCELADO';
     const painelAberto = V1_pedidoPagamentoAbertoId === p.id;
+    const isServico = p.tipoSnapshot === 'servico';
     let acao = '—';
     if(p.estado==='CRIADO') acao = `<button class="btn bv bsm" onclick="avancarParaPagamento('${p.id}', this)">Pagar agora</button>`;
     else if(p.estado==='AGUARDA_PAGAMENTO') acao = `<button class="btn bo bsm" onclick="togglePainelPagamento('${p.id}')">${painelAberto?'Fechar':'Ver instruções de pagamento'}</button>`;
     else if(p.estado==='PAGAMENTO_ENVIADO') acao = `<span class="card-desc" style="font-size:12px">Pagamento em análise</span>`;
-    else if(p.estado==='PAGO') acao = `<span class="card-desc" style="font-size:12px">Pagamento confirmado</span>`;
-    else if(p.estado==='ENTREGUE') acao = `<span class="card-desc" style="font-size:12px">Produto entregue</span>`;
+    else if(p.estado==='PAGO') acao = `<span class="card-desc" style="font-size:12px">${isServico?'Pago — a aguardar início do serviço':'Pagamento confirmado'}</span>`;
+    else if(p.estado==='EM_EXECUCAO') acao = `<span class="card-desc" style="font-size:12px">Prestador a executar o serviço</span>`;
+    else if(p.estado==='ENTREGUE') acao = `<span class="card-desc" style="font-size:12px">${isServico?'Serviço entregue':'Produto entregue'}</span>`;
+    if(isServico && (p.estado==='PAGO' || p.estado==='EM_EXECUCAO')){
+      acao += `<br><button class="btn bo bsm" style="margin-top:6px" onclick="toggleBriefingPainel('${p.id}')">${V1_pedidoBriefingAbertoId===p.id?'Fechar briefing':(p.briefing?'Ver/editar briefing':'Enviar briefing')}</button>`;
+    }
+    if(p.estado!=='CANCELADO'){
+      acao += `<br><button class="btn bo bsm" style="margin-top:6px" onclick="abrirOuCriarConversa('CLIENTE_SERVICO','${p.id}',['${p.compradorId}','${p.vendedorId}'], this)">Chat</button>`;
+    }
     // Entrega só fica disponível quando ENTREGUE + linkEntregue (definidos
     // sempre em conjunto por adminEntregarPedido — nunca pelo comprador).
     // Em PAGO sem link ainda, mostra estado de espera em vez de link vazio.
     let entregaCell = '—';
     if(p.estado==='ENTREGUE' && p.linkEntregue){
-      entregaCell = `<a href="${escHtml(p.linkEntregue)}" target="_blank" rel="noopener" class="btn bv bsm">Aceder ao produto</a>`;
+      entregaCell = isServico
+        ? `<span class="card-desc" style="font-size:12px;white-space:pre-wrap">${escHtml(p.linkEntregue)}</span>`
+        : `<a href="${escHtml(p.linkEntregue)}" target="_blank" rel="noopener" class="btn bv bsm">Aceder ao produto</a>`;
+    } else if(p.estado==='EM_EXECUCAO'){
+      entregaCell = `<span class="card-desc" style="font-size:12px">Em execução pelo prestador</span>`;
     } else if(p.estado==='PAGO'){
-      entregaCell = `<span class="card-desc" style="font-size:12px">Aguarda liberação da entrega pelo Admin</span>`;
+      entregaCell = `<span class="card-desc" style="font-size:12px">${isServico?'Aguarda o prestador iniciar':'Aguarda liberação da entrega pelo Admin'}</span>`;
     }
     const linhaPrincipal = `<tr><td>${escHtml(p.tituloSnapshot)}</td><td>${fmt(p.valor)} ${escHtml(p.moeda)}</td>
       <td>${fmtData(p.criadoEm)}</td>
@@ -2510,7 +2549,15 @@ RENDERERS['comercio:pedidos'] = function(){
         <button class="btn bv bsm" style="margin-top:4px" onclick="enviarComprovativo('${p.id}', this)">Enviar comprovativo</button>
       </div>
     </td></tr>` : '';
-    return linhaPrincipal + painel;
+    const briefingPainel = (isServico && V1_pedidoBriefingAbertoId===p.id && (p.estado==='PAGO'||p.estado==='EM_EXECUCAO')) ? `<tr><td colspan="6">
+      <div class="card" style="max-width:420px">
+        <div class="card-desc" style="margin-bottom:8px">Descreve o que precisas para o prestador poder executar o serviço (referências, prazos, acessos, etc.).</div>
+        <textarea id="briefingTexto_${p.id}" rows="4" style="width:100%;padding:9px;border-radius:8px;border:1px solid var(--g1);margin-bottom:10px;box-sizing:border-box;resize:vertical" placeholder="Escreve aqui o briefing...">${escHtml(p.briefing||'')}</textarea>
+        <div class="auth-err" id="briefingErr_${p.id}"></div>
+        <button class="btn bv bsm" onclick="enviarBriefing('${p.id}', this)">Guardar briefing</button>
+      </div>
+    </td></tr>` : '';
+    return linhaPrincipal + painel + briefingPainel;
   }).join('')}
   </tbody></table></div>`;
 };
@@ -2580,9 +2627,38 @@ function guardarProgramaAfiliados(btnEl){
   .catch(function(){});
 }
 
-/* ══════ AFILIADOS › O meu programa (vendedor) ══════ */
+/* ══════ AFILIADOS › O meu programa (dono de oferta comercial) ══════
+   GATE — histórico da alteração (auditoria V1 multiperfil):
+   Antes: isSellerApproved() — exigia papel SELLER + sellerStatus
+   ACTIVE, mesmo sem relação directa com "affiliateProfiles" (que nunca
+   dependeu de papel, só de AUTH.uid). Isso prendia a configuração de
+   afiliados ao papel, não à posse de uma oferta.
+   Agora: isOfertaOwner() — verifica se o próprio uid é vendedorId de
+   pelo menos uma oferta em `ofertas`, qualquer papel — cobre tanto
+   SELLER (produtos digitais) como SERVICE_PROVIDER (serviços, módulo
+   real em marketplace:servicos). FREELANCER continua em
+   projectos/propostas (não afiliável) — isso não muda aqui; só deixa
+   de haver uma dependência arquitectural desnecessária no papel
+   SELLER. Sem nova colecção, sem mudar affiliateProfiles/{uid} nem a
+   fórmula de comissão em adminMarcarPago(). */
+function isOfertaOwner(){
+  const key = 'minhasOfertasDono';
+  if(V1.cache[key]===undefined){
+    v1Fetch(key, function(){ return fdb.collection('ofertas').where('vendedorId','==',AUTH.uid).limit(1).get(); });
+    return null; // ainda a carregar — o chamador deve mostrar skeleton
+  }
+  return V1.cache[key].length > 0;
+}
 RENDERERS['afiliados:comissoes'] = function(){
   if(!AUTH.uid) return loginGate('Entra para configurares o teu programa de afiliados.');
+  const dono = isOfertaOwner();
+  if(dono === null) return skeletonGrid();
+  if(!dono){
+    return `<div class="gate-card"><div class="gi">${icon('network')}</div>
+      <div class="card-tit" style="font-size:15px;margin-bottom:8px">Precisas de ter uma oferta comercial</div>
+      <div class="card-desc" style="margin-bottom:16px">O programa de afiliados é configurado pelo proprietário de cada oferta, para as suas próprias ofertas. Disponibiliza as tuas ofertas elegíveis para afiliados e define a comissão.</div>
+      <button class="btn bo" onclick="go('comercio','ofertas')">Ver as minhas ofertas</button></div>`;
+  }
   const key = 'meuAfiliadoPerfil';
   if(V1.cache[key]===undefined){
     v1Fetch(key, function(){
@@ -2591,11 +2667,6 @@ RENDERERS['afiliados:comissoes'] = function(){
       });
     });
     return skeletonGrid();
-  }
-  if(!isSellerApproved()){
-    return `<div class="gate-card"><div class="gi">${icon('network')}</div>
-      <div class="card-tit" style="font-size:15px;margin-bottom:8px">Precisas de ser Vendedor aprovado</div>
-      <div class="card-desc">O programa de afiliados é configurado por vendedores para as suas próprias ofertas.</div></div>`;
   }
   const perfil = V1.cache[key][0] || { activo:false, percentagem:0 };
   return `<p class="page-sub">Activa um programa de afiliados para as tuas ofertas e define a percentagem de comissão paga a quem trouxer vendas.</p>
@@ -2620,7 +2691,7 @@ RENDERERS['afiliados:links'] = function(){
   }
   const ofertas = V1.cache[key];
   if(!ofertas.length) return emptyState('🔗','Ainda não há ofertas publicadas','Volta quando houver produtos no Marketplace.');
-  return `<p class="page-sub">Gera um link de afiliado para qualquer oferta publicada. Não conseguimos confirmar aqui se o vendedor tem mesmo um programa activo — isso é validado pelo Admin no momento da venda.</p>
+  return `<p class="page-sub">Gera um link de afiliado para qualquer oferta publicada. Não conseguimos confirmar aqui se o proprietário da oferta tem mesmo um programa activo — isso é validado pelo Admin no momento da venda.</p>
   <div class="table-wrap"><table><thead><tr><th>Oferta</th><th>Link</th><th></th></tr></thead><tbody>
   ${ofertas.map(function(o){
     const link = afiliadoLinkParaOferta(o.id);
@@ -2853,29 +2924,52 @@ function togglePropostasRecebidas(projectoId){
 function aceitarProposta(projectoId, propostaId, freelancerId, btnEl){
   const projectoRef = fdb.collection('projectos').doc(projectoId);
   const propostaRef = fdb.collection('propostas').doc(propostaId);
-  const outrasPendentes = (V1.cache['propostasProjecto:'+projectoId] || [])
-    .filter(function(p){ return p.id !== propostaId && p.estado === 'PENDENTE'; });
   runWithLocalLoader(btnEl, 'A aceitar proposta…', function(){
-    return fdb.runTransaction(function(tx){
-      return tx.get(projectoRef).then(function(pSnap){
-        if(!pSnap.exists) throw new Error('Este projecto já não existe.');
-        const proj = pSnap.data();
-        if(proj.clienteId !== AUTH.uid) throw new Error('Este projecto não te pertence.');
-        if(proj.estado !== 'ABERTO' && proj.estado !== 'EM_ANALISE') throw new Error('Este projecto já não está a aceitar propostas.');
-        return tx.get(propostaRef).then(function(propSnap){
-          if(!propSnap.exists) throw new Error('Esta proposta já não existe.');
-          const prop = propSnap.data();
-          if(prop.projectoId !== projectoId) throw new Error('Proposta não pertence a este projecto.');
-          if(prop.estado !== 'PENDENTE') throw new Error('Esta proposta já foi decidida.');
-          const now = firebase.firestore.FieldValue.serverTimestamp();
-          tx.update(projectoRef, { estado:'EM_CURSO', freelancerId: freelancerId, propostaAceitaId: propostaId, atualizadoEm: now });
-          tx.update(propostaRef, { estado:'ACEITA', atualizadoEm: now });
-          outrasPendentes.forEach(function(op){
-            tx.update(fdb.collection('propostas').doc(op.id), { estado:'REJEITADA', atualizadoEm: now });
+    // A API Firestore (compat) usada neste projecto só aceita uma
+    // DocumentReference em tx.get() — não aceita uma query (.where())
+    // dentro da transacção. Adaptação compatível com o padrão já
+    // existente: a lista de candidatos a "outras propostas pendentes" é
+    // obtida aqui por uma leitura REAL ao Firestore (nunca da
+    // V1.cache/UI), imediatamente antes de abrir a transacção; dentro da
+    // transacção, cada candidato é relido individualmente via tx.get() e
+    // só é efectivamente rejeitado se, nesse momento exacto, ainda
+    // pertencer a este projecto e ainda estiver PENDENTE — a decisão de
+    // rejeitar usa sempre o estado fresco lido dentro da transacção,
+    // nunca a lista externa (que serve só para saber que IDs olhar).
+    return fdb.collection('propostas').where('projectoId','==',projectoId).where('estado','==','PENDENTE').get()
+      .then(function(qs){
+        const outrosIds = qs.docs.map(function(d){ return d.id; }).filter(function(id){ return id !== propostaId; });
+        return fdb.runTransaction(function(tx){
+          return tx.get(projectoRef).then(function(pSnap){
+            if(!pSnap.exists) throw new Error('Este projecto já não existe.');
+            const proj = pSnap.data();
+            if(proj.clienteId !== AUTH.uid) throw new Error('Este projecto não te pertence.');
+            if(proj.estado !== 'ABERTO' && proj.estado !== 'EM_ANALISE') throw new Error('Este projecto já não está a aceitar propostas.');
+            return tx.get(propostaRef).then(function(propSnap){
+              if(!propSnap.exists) throw new Error('Esta proposta já não existe.');
+              const prop = propSnap.data();
+              if(prop.projectoId !== projectoId) throw new Error('Proposta não pertence a este projecto.');
+              if(prop.estado !== 'PENDENTE') throw new Error('Esta proposta já foi decidida.');
+              // Todas as leituras (incluindo as das "outras" propostas)
+              // têm de acontecer antes de qualquer escrita da transacção.
+              return Promise.all(outrosIds.map(function(id){
+                return tx.get(fdb.collection('propostas').doc(id));
+              })).then(function(outrosSnaps){
+                const now = firebase.firestore.FieldValue.serverTimestamp();
+                tx.update(projectoRef, { estado:'EM_CURSO', freelancerId: freelancerId, propostaAceitaId: propostaId, atualizadoEm: now });
+                tx.update(propostaRef, { estado:'ACEITA', atualizadoEm: now });
+                outrosSnaps.forEach(function(snap){
+                  if(!snap.exists) return;
+                  const d = snap.data();
+                  if(d.projectoId === projectoId && d.estado === 'PENDENTE'){
+                    tx.update(snap.ref, { estado:'REJEITADA', atualizadoEm: now });
+                  }
+                });
+              });
+            });
           });
         });
       });
-    });
   }, { successText:'Proposta aceite' })
   .then(function(){
     V1_propostasRecebidasAbertoId = null;
@@ -3003,7 +3097,8 @@ RENDERERS['marketplace:freelancers'] = function(){
           <button class="btn bo bsm" style="flex:1" onclick="togglePropostasRecebidas('${p.id}')">${painelAberto?'Fechar':'Ver propostas recebidas'}</button>
           <button class="btn bo bsm" style="flex:1" onclick="cancelarProjecto('${p.id}', this)">Cancelar</button>
         </div>` : ''}
-        ${p.estado==='EM_CURSO' ? `<button class="btn bv bsm" style="margin-top:10px;width:100%" onclick="marcarProjectoConcluido('${p.id}', this)">Marcar como concluído</button>` : ''}
+        ${p.estado==='EM_CURSO' ? `<button class="btn bv bsm" style="margin-top:10px;width:100%" onclick="marcarProjectoConcluido('${p.id}', this)">Marcar como concluído</button>
+        <button class="btn bo bsm" style="margin-top:8px;width:100%" onclick="abrirOuCriarConversa('CLIENTE_FREELANCER','${p.id}',['${p.clienteId}','${p.freelancerId}'], this)">Chat</button>` : ''}
         ${painel}
       </div>`;
     }).join('')}</div>`;
@@ -3025,7 +3120,8 @@ RENDERERS['marketplace:freelancers'] = function(){
       <div class="card-tit">${escHtml(p.titulo)}</div>
       <div class="card-desc">${escHtml(p.descricao||'')}</div>
       <div class="card-foot"><span>${fmt(p.orcamento)} Kz</span><span class="pill ${PROJ_ESTADO_PILL[p.estado]}">${PROJ_ESTADO_LABEL[p.estado]}</span></div>
-      ${p.estado==='EM_CURSO' ? `<button class="btn bv bsm" style="margin-top:10px;width:100%" onclick="marcarProjectoConcluido('${p.id}', this)">Marcar como concluído</button>` : ''}
+      ${p.estado==='EM_CURSO' ? `<button class="btn bv bsm" style="margin-top:10px;width:100%" onclick="marcarProjectoConcluido('${p.id}', this)">Marcar como concluído</button>
+      <button class="btn bo bsm" style="margin-top:8px;width:100%" onclick="abrirOuCriarConversa('CLIENTE_FREELANCER','${p.id}',['${p.clienteId}','${p.freelancerId}'], this)">Chat</button>` : ''}
     </div>`;
   }).join('')}</div>`}
   <div class="card-tit" style="margin-bottom:10px">Minhas propostas</div>
@@ -3084,12 +3180,12 @@ RENDERERS['administracao:ofertas'] = function(){
   return `<p class="page-sub">Moderação de ofertas de produtos digitais. <button class="btn bo bsm" onclick="refreshV1('todasOfertasAdmin', this)">Actualizar</button></p>
   <h3 style="color:#fff;font-size:14px;margin:8px 0">Por aprovar (${pendentes.length})</h3>
   ${!pendentes.length ? emptyState('✅','Nada pendente','Sem ofertas à espera de aprovação.') : `<div class="table-wrap"><table><thead><tr><th>Oferta</th><th>Preço</th><th></th></tr></thead><tbody>
-  ${pendentes.map(function(o){ return `<tr><td>${escHtml(o.titulo)}</td><td>${fmt(o.preco)} Kz</td><td style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn bv bsm" onclick="aprovarOferta('${o.id}',this)">Aprovar</button><button class="btn bo bsm" onclick="rejeitarOferta('${o.id}',this)">Rejeitar</button><button class="btn bo bsm" onclick="openConfigurarEntrega('${o.id}','${escHtml(o.titulo).replace(/'/g,"\\'")}','${o.vendedorId}')">${icon('package')} Configurar entrega</button></td></tr>`; }).join('')}
+  ${pendentes.map(function(o){ return `<tr><td>${escHtml(o.titulo)}${o.tipo==='servico'?' <span class="pill pill-n" style="font-size:10px">🛠️ Serviço</span>':''}</td><td>${fmt(o.preco)} Kz</td><td style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn bv bsm" onclick="aprovarOferta('${o.id}',this)">Aprovar</button><button class="btn bo bsm" onclick="rejeitarOferta('${o.id}',this)">Rejeitar</button><button class="btn bo bsm" onclick="openConfigurarEntrega('${o.id}','${escHtml(o.titulo).replace(/'/g,"\\'")}','${o.vendedorId}')">${icon('package')} Configurar entrega</button></td></tr>`; }).join('')}
   </tbody></table></div>`}
   <h3 style="color:#fff;font-size:14px;margin:20px 0 8px">Todas as outras</h3>
   ${!outras.length ? emptyState('📦','Sem mais ofertas','') : `<div class="table-wrap"><table><thead><tr><th>Oferta</th><th>Preço</th><th>Estado</th><th></th></tr></thead><tbody>
   ${outras.map(function(o){
-    return `<tr><td>${escHtml(o.titulo)}</td><td>${fmt(o.preco)} Kz</td><td><span class="pill pill-n">${estadoLabel[o.estado]||o.estado}</span></td><td style="display:flex;gap:6px;flex-wrap:wrap">
+    return `<tr><td>${escHtml(o.titulo)}${o.tipo==='servico'?' <span class="pill pill-n" style="font-size:10px">🛠️ Serviço</span>':''}</td><td>${fmt(o.preco)} Kz</td><td><span class="pill pill-n">${estadoLabel[o.estado]||o.estado}</span></td><td style="display:flex;gap:6px;flex-wrap:wrap">
     ${o.estado==='PUBLICADA' ? `<button class="btn bo bsm" onclick="suspenderOferta('${o.id}',this)">Suspender</button>` : ''}
     ${o.estado==='SUSPENSA' ? `<button class="btn bv bsm" onclick="reativarOferta('${o.id}',this)">Reactivar</button>` : ''}
     <button class="btn bo bsm" onclick="openConfigurarEntrega('${o.id}','${escHtml(o.titulo).replace(/'/g,"\\'")}','${o.vendedorId}')">${icon('package')} Configurar entrega</button>
@@ -3134,23 +3230,31 @@ function adminMarcarPago(pid, vendedorId, valor, moeda, chargeId, btnEl){
         // e o novo fluxo manual com comprovativo (PAGAMENTO_ENVIADO). Mesma
         // função para os dois — não há um segundo "marcar pago".
         if(p.estado !== 'AGUARDA_PAGAMENTO' && p.estado !== 'PAGAMENTO_ENVIADO') throw new Error('Este pedido já foi processado (estado actual: ' + p.estado + ').');
+        // Fonte da verdade financeira = o próprio documento do pedido,
+        // relido agora dentro da transacção — nunca os parâmetros vindos
+        // da UI (que só servem de compatibilidade de assinatura/preview
+        // visual na tabela do Admin, podendo estar desactualizados se o
+        // pedido tiver mudado entre o render e o clique).
+        const valorReal = p.valor;
+        const vendedorIdReal = p.vendedorId;
+        const moedaReal = p.moeda || 'AOA';
         // Afiliados: só o Admin consegue ler affiliateProfiles de outra
         // pessoa (Rule: dono ou Admin) — por isso esta validação real só
         // pode acontecer aqui, nunca no checkout do comprador. Todas as
         // leituras (incluindo esta, condicional) têm de vir antes de
         // qualquer escrita da transacção — por isso o tx.get() acontece
         // já a seguir, antes de qualquer tx.set/tx.update.
-        const afiliadoId = (p.afiliadoId && p.afiliadoId !== vendedorId) ? p.afiliadoId : null;
+        const afiliadoId = (p.afiliadoId && p.afiliadoId !== vendedorIdReal) ? p.afiliadoId : null;
         const afilPromise = afiliadoId ? tx.get(fdb.collection('affiliateProfiles').doc(afiliadoId)) : Promise.resolve(null);
         return afilPromise.then(function(afilSnap){
           const now = firebase.firestore.FieldValue.serverTimestamp();
           // Comissão calculada aqui, uma única vez, no momento em que o
           // registo nasce — nunca recalculada depois, para o valor devido
           // não mudar se a percentagem for alterada no futuro.
-          const comissaoIP = Math.round(valor * COMISSAO_IP_PERCENT * 100) / 100;
-          const valorDevidoVendedor = Math.round((valor - comissaoIP) * 100) / 100;
+          const comissaoIP = Math.round(valorReal * COMISSAO_IP_PERCENT * 100) / 100;
+          const valorDevidoVendedor = Math.round((valorReal - comissaoIP) * 100) / 100;
           tx.update(pedidoRef, { estado:'PAGO', 'pagamento.estadoGateway':'PAID', 'pagamento.atualizadoEm':now, atualizadoEm:now });
-          tx.set(registoRef, { pedidoId:pid, vendedorId:vendedorId, valorVenda:valor, comissaoIP:comissaoIP, valorDevidoVendedor:valorDevidoVendedor, moeda:moeda||'AOA', estado:'DEVIDO', referenciaPagamento:chargeId||null, criadoEm:now });
+          tx.set(registoRef, { pedidoId:pid, vendedorId:vendedorIdReal, valorVenda:valorReal, comissaoIP:comissaoIP, valorDevidoVendedor:valorDevidoVendedor, moeda:moedaReal, estado:'DEVIDO', referenciaPagamento:chargeId||null, criadoEm:now });
           // Só regista comissão de afiliado se o perfil existir e estiver
           // MESMO activo, com percentagem > 0 — nunca inventado, nunca
           // assumido a partir do que o comprador escreveu no checkout.
@@ -3158,11 +3262,11 @@ function adminMarcarPago(pid, vendedorId, valor, moeda, chargeId, btnEl){
             const afil = afilSnap.data();
             const pct = (typeof afil.percentagem === 'number') ? afil.percentagem : 0;
             if(afil.activo === true && pct > 0){
-              const comissaoAfiliado = Math.round(valor * (pct/100) * 100) / 100;
+              const comissaoAfiliado = Math.round(valorReal * (pct/100) * 100) / 100;
               tx.set(fdb.collection('affiliateAttributions').doc(pid), {
-                pedidoId: pid, afiliadoId: afiliadoId, vendedorId: vendedorId, ofertaId: p.ofertaId||null,
-                valorVenda: valor, percentagemAplicada: pct, comissaoAfiliado: comissaoAfiliado,
-                moeda: moeda||'AOA', estado:'DEVIDO', criadoEm: now
+                pedidoId: pid, afiliadoId: afiliadoId, vendedorId: vendedorIdReal, ofertaId: p.ofertaId||null,
+                valorVenda: valorReal, percentagemAplicada: pct, comissaoAfiliado: comissaoAfiliado,
+                moeda: moedaReal, estado:'DEVIDO', criadoEm: now
               });
               // Rollup de leitura própria do afiliado (Opção B aprovada):
               // affiliateStats/{afiliadoId} é o ÚNICO doc que a Rule deixa o
@@ -3222,7 +3326,7 @@ function adminEntregarPedido(pid, ofertaId, btnEl){
         const pSnap = results[0], privSnap = results[1];
         if(!pSnap.exists) throw new Error('Este pedido já não existe.');
         const p = pSnap.data();
-        if(p.estado !== 'PAGO') throw new Error('Este pedido já não está em estado Pago.');
+        if(p.estado !== 'PAGO' && p.estado !== 'EM_EXECUCAO') throw new Error('Este pedido já não está em estado Pago/Em execução.');
         const link = privSnap.exists ? (privSnap.data().linkEntrega || '').trim() : '';
         if(!link) throw new Error('Esta oferta ainda não possui um link de entrega configurado.');
         tx.update(pedidoRef, { estado:'ENTREGUE', linkEntregue: link, atualizadoEm: firebase.firestore.FieldValue.serverTimestamp() });
@@ -3290,7 +3394,7 @@ RENDERERS['administracao:pedidos'] = function(){
     return skeletonGrid();
   }
   const pedidos = V1.cache[key];
-  const estadoLabel = {CRIADO:'Criado', AGUARDA_PAGAMENTO:'Aguarda pagamento', PAGAMENTO_ENVIADO:'Comprovativo enviado', PAGO:'Pago', ENTREGUE:'Entregue', FALHOU:'Falhou', CANCELADO:'Cancelado'};
+  const estadoLabel = {CRIADO:'Criado', AGUARDA_PAGAMENTO:'Aguarda pagamento', PAGAMENTO_ENVIADO:'Comprovativo enviado', PAGO:'Pago', EM_EXECUCAO:'Em execução', ENTREGUE:'Entregue', FALHOU:'Falhou', CANCELADO:'Cancelado'};
   if(!pedidos.length) return emptyState('🧾','Sem pedidos ainda','Aparecem aqui assim que um cliente comprar.');
   return `<button class="btn bo bsm" style="margin-bottom:12px" onclick="refreshV1('todosPedidosAdmin', this)">Actualizar</button>
   <div class="table-wrap"><table><thead><tr><th>ID</th><th>Produto</th><th>Oferta</th><th>Comprador</th><th>Vendedor</th><th>Valor</th><th>Data</th><th>Comprovativo</th><th>Estado</th><th>Acções</th></tr></thead><tbody>
@@ -3307,8 +3411,12 @@ RENDERERS['administracao:pedidos'] = function(){
     // Administração → Ofertas (openConfigurarEntrega/guardarLinkEntrega,
     // que escrevem em ofertasPrivado) — só passou a estar acessível
     // também a partir daqui, sem duplicar lógica nenhuma. "Liberar
-    // entrega" continua a ser adminEntregarPedido(), inalterada.
+    // entrega" continua a ser adminEntregarPedido(), agora também
+    // aceita EM_EXECUCAO (ver precondição alargada na própria função) —
+    // fallback do Admin para serviços enquanto o prestador não tiver
+    // essa acção liberada nas Rules.
     else if(p.estado==='PAGO') acoes = `<button class="btn bo bsm" onclick="openConfigurarEntrega('${p.ofertaId}','${escHtml(p.tituloSnapshot).replace(/'/g,"\\'")}','${p.vendedorId}')">Configurar link de entrega</button> <button class="btn bv bsm" onclick="adminEntregarPedido('${p.id}','${p.ofertaId}',this)">Marcar como ENTREGUE</button>`;
+    else if(p.estado==='EM_EXECUCAO') acoes = `<button class="btn bv bsm" onclick="adminEntregarPedido('${p.id}','${p.ofertaId}',this)">Marcar como ENTREGUE</button>`;
     const comprovativoCell = p.comprovativo
       ? `<div style="font-size:11px;line-height:1.5">
            <b>${escHtml(p.comprovativo.nomeTitular||'—')}</b><br>
@@ -3318,7 +3426,7 @@ RENDERERS['administracao:pedidos'] = function(){
            <span style="color:var(--g3lt)">${fmtData(p.comprovativo.enviadoEm)}</span>
          </div>`
       : '—';
-    return `<tr><td style="font-family:monospace;font-size:11px;color:var(--g3lt)">${escHtml(p.id)}</td><td>${escHtml(p.tituloSnapshot)}</td><td style="font-family:monospace;font-size:11px;color:var(--g3lt)">${escHtml(p.ofertaId)}</td><td style="font-family:monospace;font-size:11px">${escHtml(p.compradorId)}</td><td style="font-family:monospace;font-size:11px">${escHtml(p.vendedorId)}</td><td>${fmt(p.valor)} ${escHtml(p.moeda)}</td><td>${fmtData(p.criadoEm)}</td><td>${comprovativoCell}</td><td><span class="pill pill-n">${estadoLabel[p.estado]||p.estado}</span></td><td style="display:flex;gap:6px;flex-wrap:wrap">${acoes}</td></tr>`;
+    return `<tr><td style="font-family:monospace;font-size:11px;color:var(--g3lt)">${escHtml(p.id)}</td><td>${escHtml(p.tituloSnapshot)}${p.tipoSnapshot==='servico'?' <span class="pill pill-n" style="font-size:10px">🛠️ Serviço</span>':''}</td><td style="font-family:monospace;font-size:11px;color:var(--g3lt)">${escHtml(p.ofertaId)}</td><td style="font-family:monospace;font-size:11px">${escHtml(p.compradorId)}</td><td style="font-family:monospace;font-size:11px">${escHtml(p.vendedorId)}</td><td>${fmt(p.valor)} ${escHtml(p.moeda)}</td><td>${fmtData(p.criadoEm)}</td><td>${comprovativoCell}</td><td><span class="pill pill-n">${estadoLabel[p.estado]||p.estado}</span></td><td style="display:flex;gap:6px;flex-wrap:wrap">${acoes}</td></tr>`;
   }).join('')}
   </tbody></table></div>`;
 };
@@ -3483,7 +3591,7 @@ RENDERERS['administracao:afiliados'] = function(){
   const total = atrib.reduce(function(s,a){ return s + (a.estado==='DEVIDO' ? (a.comissaoAfiliado||0) : 0); }, 0);
   return `<button class="btn bo bsm" style="margin-bottom:12px" onclick="refreshV1('todasAtribuicoesAfiliados', this)">Actualizar</button>
   <div class="stat-row"><div class="stat-card"><div class="stat-lbl">Total devido a afiliados</div><div class="stat-val">${fmt(total)} <small>Kz</small></div></div></div>
-  <div class="table-wrap"><table><thead><tr><th>Pedido</th><th>Afiliado</th><th>Vendedor</th><th>Valor venda</th><th>%</th><th>Comissão</th><th>Estado</th></tr></thead><tbody>
+  <div class="table-wrap"><table><thead><tr><th>Pedido</th><th>Afiliado</th><th>Proprietário da oferta</th><th>Valor venda</th><th>%</th><th>Comissão</th><th>Estado</th></tr></thead><tbody>
   ${atrib.map(function(a){ return `<tr><td style="font-family:monospace;font-size:11px">${escHtml(a.pedidoId)}</td><td style="font-family:monospace;font-size:11px">${escHtml(a.afiliadoId)}</td><td style="font-family:monospace;font-size:11px">${escHtml(a.vendedorId)}</td><td>${fmt(a.valorVenda)} ${escHtml(a.moeda||'AOA')}</td><td>${a.percentagemAplicada}%</td><td>${fmt(a.comissaoAfiliado)} ${escHtml(a.moeda||'AOA')}</td><td><span class="pill ${a.estado==='LIQUIDADO'?'pill-g':'pill-v'}">${a.estado}</span></td></tr>`; }).join('')}
   </tbody></table></div>
   ${v1Note('sem saque de afiliado nesta fase — o módulo Saques (Financeiro → Saques) só cobre o saldo de vendedor em registosFinanceiros. Pagar afiliados ficaria para uma extensão futura.')}`;
@@ -3507,6 +3615,239 @@ RENDERERS['administracao:afiliados'] = function(){
     }
   }catch(e){ /* sessionStorage/URL indisponíveis (modo privado, etc.) — ignora silenciosamente */ }
 })();
+
+/* ══════════════════════════════════════════════════════════════
+   CHAT V1 — comunicação directa entre participantes de uma operação
+   real da plataforma (projecto de freelancer, ou pedido de serviço).
+
+   Colecções (Firestore rules destas ainda por publicar — ver relatório):
+     conversas/{conversaId}
+       { participantes:[uid1,uid2], tipo:'CLIENTE_FREELANCER'|'CLIENTE_SERVICO',
+         referenciaId, ultimaMensagem, ultimaMensagemEm, naoLidoPor:[uid,...],
+         criadoEm, atualizadoEm }
+     conversas/{conversaId}/mensagens/{mensagemId}
+       { remetenteId, texto, criadoEm, lida }
+
+   "naoLidoPor" é o único campo acrescentado ao esquema pedido — sem ele
+   não há forma barata de mostrar o indicador de não lido na LISTA de
+   conversas sem reler as mensagens de cada uma (o que violaria "evitar
+   leituras duplicadas"). É só um array dos participantes que ainda não
+   viram a última mensagem; mantém a mesma leitura (um único doc já
+   trazido para a lista) a fazer o trabalho todo.
+
+   Deduplicação: o ID do documento "conversas" é sempre
+   `${tipo}_${referenciaId}` — determinístico, nunca aleatório. Como
+   cada projecto/pedido só tem UM par cliente+contraparte possível,
+   tipo+referenciaId já identifica a conversa por completo (não é
+   preciso guardar nem comparar a lista de participantes para a
+   deduplicação). "Criar" uma conversa que já existe é sempre um
+   no-op seguro (ver abrirOuCriarConversa) — nunca gera duplicado,
+   mesmo com dois cliques em simultâneo de lados diferentes.
+
+   Reaproveita por completo: fdb, AUTH, runWithLocalLoader,
+   showGlobalToast, v1Fetch/v1Invalidate/V1.cache, escHtml, emptyState,
+   skeletonGrid, loginGate, go(), render(), a biblioteca ICONS. Não usa
+   onSnapshot nem nenhum listener realtime — cada abertura de conversa
+   é um único .get() (doc) + um único .get() (mensagens, limit(200)),
+   tal como o resto da app. Não sobe ficheiros, nem áudio, nem grupos,
+   nem reacções, nem edição/remoção de mensagens — apenas texto. ══ */
+
+function fmtDataHora(ts){
+  if(!ts || typeof ts.toDate !== 'function') return '—';
+  try{ return ts.toDate().toLocaleString('pt-AO', {day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}); }catch(e){ return '—'; }
+}
+function conversaIdFor(tipo, referenciaId){ return tipo + '_' + referenciaId; }
+function outroParticipante(c){
+  if(!Array.isArray(c.participantes)) return '?';
+  return c.participantes.find(function(uid){ return uid !== AUTH.uid; }) || '?';
+}
+
+let V1_conversaAbertaId = null;
+
+/* Abre uma conversa já existente (chamado a partir da lista, onde a
+   existência já está garantida). Invalida a cache dessa conversa
+   específica para trazer o estado mais recente ao entrar — não é uma
+   leitura "duplicada", é a app a garantir que não mostra mensagens
+   desactualizadas de uma visita anterior. */
+function abrirConversa(conversaId){
+  V1_conversaAbertaId = conversaId;
+  v1Invalidate('conversa:'+conversaId);
+  v1Invalidate('mensagens:'+conversaId);
+  go('chat', '_conversa');
+}
+
+/* Cria a conversa (id determinístico tipo+referenciaId) só se ainda
+   não existir, depois abre-a. O próprio utilizador tem de estar entre
+   os participantes passados — caso contrário recusa localmente antes
+   de sequer tocar no Firestore (as Rules, quando publicadas, serão a
+   barreira real do servidor). */
+function abrirOuCriarConversa(tipo, referenciaId, participantes, btnEl){
+  if(!AUTH.uid){ openAuth(); return; }
+  if(!Array.isArray(participantes) || participantes.length!==2 || !participantes[0] || !participantes[1]){
+    console.error('[chat] participantes inválidos', participantes); return;
+  }
+  if(participantes.indexOf(AUTH.uid)===-1){
+    showGlobalToast('Não tens acesso a esta conversa.', true); return;
+  }
+  const conversaId = conversaIdFor(tipo, referenciaId);
+  const ref = fdb.collection('conversas').doc(conversaId);
+  runWithLocalLoader(btnEl, 'A abrir conversa…', function(){
+    return ref.get().then(function(snap){
+      if(snap.exists) return; // já existe — não recria, não duplica
+      const now = firebase.firestore.FieldValue.serverTimestamp();
+      return ref.set({
+        participantes: participantes, tipo: tipo, referenciaId: referenciaId,
+        ultimaMensagem: '', ultimaMensagemEm: null, naoLidoPor: [],
+        criadoEm: now, atualizadoEm: now
+      });
+    });
+  }, {})
+  .then(function(){ v1Invalidate('minhasConversas'); abrirConversa(conversaId); })
+  .catch(function(){});
+}
+
+/* Marca como lidas as mensagens já carregadas em memória endereçadas a
+   mim (nunca lê nada de novo do servidor para isto) e remove-me de
+   "naoLidoPor" na conversa. Guarda de idempotência por sessão via
+   V1.loading, reaproveitando o mesmo mapa que v1Fetch já usa — evita
+   reenviar o mesmo batch a cada re-render enquanto a janela está aberta. */
+function marcarConversaComoLida(conversaId, conversa, mensagens){
+  const guardaKey = 'chatLido:'+conversaId;
+  if(V1.loading[guardaKey]) return;
+  const porLer = mensagens.filter(function(m){ return m.remetenteId!==AUTH.uid && m.lida!==true; });
+  const euNaoLido = Array.isArray(conversa.naoLidoPor) && conversa.naoLidoPor.indexOf(AUTH.uid)!==-1;
+  if(!porLer.length && !euNaoLido) return;
+  V1.loading[guardaKey] = true;
+  const batch = fdb.batch();
+  porLer.forEach(function(m){
+    batch.update(fdb.collection('conversas').doc(conversaId).collection('mensagens').doc(m.id), { lida:true });
+    m.lida = true;
+  });
+  if(euNaoLido){
+    batch.update(fdb.collection('conversas').doc(conversaId), { naoLidoPor: firebase.firestore.FieldValue.arrayRemove(AUTH.uid) });
+    conversa.naoLidoPor = conversa.naoLidoPor.filter(function(u){ return u!==AUTH.uid; });
+  }
+  batch.commit().catch(function(err){ console.error('[chat] erro ao marcar como lida', err); });
+}
+
+/* Envia mensagem. remetenteId vem SEMPRE de AUTH.uid, nunca de um
+   campo editável — o remetente nunca consegue enviar em nome de
+   outro utilizador só por construção do código. Confirma dentro da
+   própria transacção que AUTH.uid ainda é participante da conversa
+   antes de escrever qualquer coisa. */
+function enviarMensagem(conversaId, btnEl){
+  if(!AUTH.uid){ openAuth(); return; }
+  const inputEl = document.getElementById('chatInput_'+conversaId);
+  if(!inputEl) return;
+  const texto = (inputEl.value || '').trim();
+  if(!texto) return; // rejeita mensagem vazia, sem ruído — botão simplesmente não faz nada
+  if(texto.length > 2000){ showGlobalToast('Mensagem excede o limite de 2000 caracteres.', true); return; }
+  const conversaRef = fdb.collection('conversas').doc(conversaId);
+  const msgRef = conversaRef.collection('mensagens').doc();
+  const now = firebase.firestore.FieldValue.serverTimestamp();
+  runWithLocalLoader(btnEl, 'A enviar…', function(){
+    return fdb.runTransaction(function(tx){
+      return tx.get(conversaRef).then(function(snap){
+        if(!snap.exists) throw new Error('Esta conversa já não existe.');
+        const c = snap.data();
+        if(!Array.isArray(c.participantes) || c.participantes.indexOf(AUTH.uid)===-1){
+          throw new Error('Não tens acesso a esta conversa.');
+        }
+        const destinatarios = c.participantes.filter(function(uid){ return uid!==AUTH.uid; });
+        tx.set(msgRef, { remetenteId: AUTH.uid, texto: texto, criadoEm: now, lida:false });
+        tx.update(conversaRef, { ultimaMensagem: texto, ultimaMensagemEm: now, atualizadoEm: now, naoLidoPor: destinatarios });
+      });
+    });
+  }, {})
+  .then(function(){
+    inputEl.value = '';
+    v1Invalidate('mensagens:'+conversaId);
+    v1Invalidate('conversa:'+conversaId);
+    v1Invalidate('minhasConversas');
+    render();
+  })
+  .catch(function(){});
+}
+
+/* ── Lista de conversas do utilizador autenticado ── */
+RENDERERS['chat:conversas'] = function(){
+  if(!AUTH.uid) return loginGate('Entra para veres as tuas conversas.');
+  const key = 'minhasConversas';
+  if(V1.cache[key]===undefined){
+    v1Fetch(key, function(){ return fdb.collection('conversas').where('participantes','array-contains',AUTH.uid).orderBy('atualizadoEm','desc').limit(60).get(); });
+    return skeletonGrid();
+  }
+  const conversas = V1.cache[key];
+  if(!conversas.length) return emptyState(icon('chat'),'Ainda sem conversas','Quando tiveres um projecto de freelancer ou um pedido de serviço em curso, o botão "Chat" aparece nessa página.');
+  return conversas.map(function(c){
+    const outro = outroParticipante(c);
+    const naoLido = Array.isArray(c.naoLidoPor) && c.naoLidoPor.indexOf(AUTH.uid)!==-1;
+    return `<div class="chat-list-item" onclick="abrirConversa('${c.id}')">
+      <div class="chat-list-avatar">${escHtml((outro||'?').charAt(0).toUpperCase())}</div>
+      <div class="chat-list-body">
+        <div class="chat-list-name" style="font-family:monospace">${escHtml(outro)}</div>
+        <div class="chat-list-preview">${escHtml(c.ultimaMensagem || 'Sem mensagens ainda')}</div>
+      </div>
+      <div class="chat-list-meta">
+        <span class="chat-list-time">${fmtDataHora(c.ultimaMensagemEm)}</span>
+        ${naoLido ? '<span class="chat-unread-dot" title="Mensagens por ler"></span>' : ''}
+      </div>
+    </div>`;
+  }).join('');
+};
+
+/* ── Janela de uma conversa aberta ── */
+RENDERERS['chat:_conversa'] = function(){
+  if(!AUTH.uid) return loginGate('Entra para veres esta conversa.');
+  const conversaId = V1_conversaAbertaId;
+  if(!conversaId){ setTimeout(function(){ go('chat','conversas'); }, 0); return skeletonGrid(); }
+
+  const convKey = 'conversa:'+conversaId;
+  if(V1.cache[convKey]===undefined){
+    v1Fetch(convKey, function(){ return fdb.collection('conversas').doc(conversaId).get().then(function(d){ return { docs: d.exists ? [d] : [] }; }); });
+    return skeletonGrid();
+  }
+  const convArr = V1.cache[convKey];
+  if(!convArr.length){
+    return `<div class="card-desc" style="margin-bottom:12px">Esta conversa já não existe.</div><button class="btn bo bsm" onclick="go('chat','conversas')">← Conversas</button>`;
+  }
+  const conversa = convArr[0];
+  if(!Array.isArray(conversa.participantes) || conversa.participantes.indexOf(AUTH.uid)===-1){
+    return `<div class="card-desc" style="margin-bottom:12px">Não tens acesso a esta conversa.</div><button class="btn bo bsm" onclick="go('chat','conversas')">← Conversas</button>`;
+  }
+
+  const msgKey = 'mensagens:'+conversaId;
+  if(V1.cache[msgKey]===undefined){
+    v1Fetch(msgKey, function(){ return fdb.collection('conversas').doc(conversaId).collection('mensagens').orderBy('criadoEm','asc').limit(200).get(); });
+    return skeletonGrid();
+  }
+  const mensagens = V1.cache[msgKey];
+  marcarConversaComoLida(conversaId, conversa, mensagens);
+  const outro = outroParticipante(conversa);
+
+  setTimeout(function(){
+    const box = document.getElementById('chatMessagesBox');
+    if(box) box.scrollTop = box.scrollHeight;
+  }, 0);
+
+  return `<button class="btn bo bsm" style="margin-bottom:10px" onclick="go('chat','conversas')">← Conversas</button>
+  <div class="chat-window">
+    <div class="chat-window-head">
+      <div class="chat-list-avatar">${escHtml((outro||'?').charAt(0).toUpperCase())}</div>
+      <div style="font-family:monospace;font-size:12px;color:#fff">${escHtml(outro)}</div>
+    </div>
+    <div class="chat-messages" id="chatMessagesBox">
+      ${mensagens.length ? mensagens.map(function(m){
+        const mine = m.remetenteId===AUTH.uid;
+        return `<div class="chat-msg ${mine?'mine':'theirs'}">${escHtml(m.texto)}<span class="chat-msg-time">${fmtDataHora(m.criadoEm)}</span></div>`;
+      }).join('') : '<div class="card-desc" style="text-align:center;margin-top:20px">Ainda sem mensagens — diz olá.</div>'}
+    </div>
+    <div class="chat-input-row">
+      <textarea id="chatInput_${conversaId}" rows="1" maxlength="2000" placeholder="Escreve uma mensagem…" onkeydown="if(event.key==='Enter' && !event.shiftKey){ event.preventDefault(); enviarMensagem('${conversaId}', this.nextElementSibling); }"></textarea>
+      <button class="btn bv bsm" onclick="enviarMensagem('${conversaId}', this)">Enviar</button>
+    </div>
+  </div>`;
+};
 
 buildNav();
 render();
