@@ -1031,7 +1031,7 @@ const ICONS = {
 };
 function icon(name){ return ICONS[name] || ''; }
 
-const SOCIAL_LINKS = { facebook:'', instagram:'', whatsapp:'', youtube:'' };
+const SOCIAL_LINKS = { facebook:'https://www.facebook.com/profile.php?id=61591209775727', whatsapp:'https://wa.me/244953512590', email:'mailto:ipdigitalao@gmail.com' };
 function hsvg(inner,extra){ return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"'+(extra||'')+'>'+inner+'</svg>'; }
 const HI = {
   cloud: hsvg('<path d="M20 16.2A4.5 4.5 0 0 0 17.5 8h-1.8A7 7 0 1 0 4 14.9"/><path d="M12 12v9"/><path d="m8 17 4 4 4-4"/>'),
@@ -1047,9 +1047,8 @@ const HI = {
   arrow: hsvg('<path d="M5 12h14"/><path d="m13 6 6 6-6 6"/>'),
   pin: hsvg('<path d="M12 2.5 4.5 5.5v6c0 5 3.2 8.2 7.5 10 4.3-1.8 7.5-5 7.5-10v-6L12 2.5z"/><path d="M12 7.5a2.6 2.6 0 0 0-2.6 2.6c0 2 2.6 4.4 2.6 4.4s2.6-2.4 2.6-4.4A2.6 2.6 0 0 0 12 7.5z"/>'),
   facebook: hsvg('<path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/>'),
-  instagram: hsvg('<rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="4"/><path d="M17.5 6.5h.01"/>'),
-  whatsapp: hsvg('<path d="M7.9 20A9 9 0 1 0 4 16.1L2 22z"/><path d="M9 9.5c.5 2 2.5 4 5 5l1.5-1.5-2-1-1 .5c-.7-.4-1.5-1.2-1.9-1.9l.5-1-1-2z"/>'),
-  youtube: hsvg('<path d="M2.5 17a24.12 24.12 0 0 1 0-10 2 2 0 0 1 1.4-1.4 49.56 49.56 0 0 1 16.2 0A2 2 0 0 1 21.5 7a24.12 24.12 0 0 1 0 10 2 2 0 0 1-1.4 1.4 49.55 49.55 0 0 1-16.2 0A2 2 0 0 1 2.5 17"/><path d="m10 15 5-3-5-3z"/>')
+  whatsapp: hsvg('<path d="M3 21l1.65-4.9A8.5 8.5 0 1 1 8 19.4z"/><path d="M9 8.6c0 3.3 3.1 6.4 6.4 6.4l1.1-1.5-2.1-1-.9.6a4.6 4.6 0 0 1-1.7-1.7l.6-.9-1-2.1z"/>'),
+  email: hsvg('<rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>')
 };
 function irPara(id, n){
   const el = document.getElementById(id);
@@ -1067,10 +1066,10 @@ function topbarSearch(){
   })(0);
 }
 function renderSocial(){
-  const nomes = {facebook:'Facebook', instagram:'Instagram', whatsapp:'WhatsApp', youtube:'YouTube'};
+  const nomes = {facebook:'Facebook', whatsapp:'WhatsApp', email:'E-mail'};
   const ativos = Object.keys(SOCIAL_LINKS).filter(function(k){ return SOCIAL_LINKS[k]; });
   const box = document.getElementById('afSocial');
-  if(box) box.innerHTML = ativos.map(function(k){ return '<a href="'+escHtml(SOCIAL_LINKS[k])+'" target="_blank" rel="noopener noreferrer" aria-label="'+nomes[k]+'">'+HI[k]+'</a>'; }).join('');
+  if(box) box.innerHTML = ativos.map(function(k){ return '<a href="'+escHtml(SOCIAL_LINKS[k])+'"'+(k==='email'?'':' target="_blank" rel="noopener noreferrer"')+' aria-label="'+nomes[k]+'" title="'+nomes[k]+'">'+HI[k]+'</a>'; }).join('');
   const tc = document.getElementById('tbContactos'); if(tc) tc.hidden = !ativos.length;
 }
 function syncChrome(){
@@ -3018,7 +3017,14 @@ function adminMarcarPago(pid, vendedorId, valor, moeda, chargeId, btnEl){
           const comissaoIP = r2(valorReal * COMISSAO_IP_PERCENT);
           const comissaoAfiliado = Math.min(r2(valorReal * pctAplicado / 100), Math.max(0, r2(valorReal - comissaoIP)));
           const valorDevidoVendedor = Math.max(0, r2(valorReal - comissaoIP - comissaoAfiliado));
-          tx.update(pedidoRef, { estado:'PAGO', 'pagamento.estadoGateway':'PAID', 'pagamento.atualizadoEm':now, atualizadoEm:now });
+          const pedidoUpdate = { estado:'PAGO', atualizadoEm:now };
+          if(p.pagamento && typeof p.pagamento === 'object'){
+            pedidoUpdate['pagamento.estadoGateway'] = 'PAID';
+            pedidoUpdate['pagamento.atualizadoEm'] = now;
+          } else {
+            pedidoUpdate.pagamento = { estadoGateway:'PAID', atualizadoEm:now };
+          }
+          tx.update(pedidoRef, pedidoUpdate);
           tx.set(registoRef, { pedidoId:pid, vendedorId:vendedorIdReal, valorVenda:valorReal, comissaoIP:comissaoIP, valorDevidoVendedor:valorDevidoVendedor, comissaoAfiliado:comissaoAfiliado, moeda:moedaReal, estado:'DEVIDO', referenciaPagamento:chargeId||null, criadoEm:now });
           if(afiliadoId){
             const pct = pctAplicado;
@@ -3323,7 +3329,7 @@ function adminDecidirSaque(id, novoEstado, btnEl){
           }
           let msg = 'Confirmas que pagaste ' + fmt(w.valor) + ' ' + (w.moeda||'AOA') + ' a este vendedor?\n\nDepois de pagar, liquida em Financeiro os registos correspondentes.';
           if(w.valor > s.disponivel){
-            msg = 'ATENÇÃO: já existem ' + fmt(s.pagoSemLiquidar) + ' Kz pagos em saques anteriores sem registos liquidados. Saldo disponível estimado: ' + fmt(s.disponivel) + ' Kz.\n\n' + msg;
+            throw new Error('Valor superior ao saldo disponível deste vendedor (' + fmt(s.disponivel) + ' Kz). Liquida os registos financeiros correspondentes antes de pagar este saque.');
           }
           if(!confirm(msg)) throw new Error('Operação cancelada.');
         });
